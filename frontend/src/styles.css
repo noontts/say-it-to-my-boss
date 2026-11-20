@@ -1,0 +1,462 @@
+@import "tailwindcss";
+
+:root {
+  font-family: system-ui, sans-serif;
+  background: #f6f3eb;
+  color: #232419;
+  line-height: 1.6;
+}
+
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+button:focus-visible,
+[tabindex="-1"]:focus-visible {
+  outline: 3px solid #426552;
+  outline-offset: 4px;
+}
+
+.shell {
+  width: min(100% - 2rem, 48rem);
+  margin-inline: auto;
+  padding-block: clamp(1.75rem, 6vw, 4rem) 3rem;
+}
+
+.masthead {
+  border-block-start: 4px solid #232419;
+  border-block-end: 1px solid #bdb8a9;
+  margin-block-end: 1.75rem;
+  padding-block: 0.75rem;
+}
+
+h1 {
+  font-size: clamp(1.125rem, 3vw, 1.375rem);
+  font-weight: 700;
+}
+
+h2 {
+  font-size: clamp(1.65rem, 5vw, 2.5rem);
+  font-weight: 750;
+  line-height: 1.35;
+  margin-block-end: 1.25rem;
+}
+
+h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.scenario-list,
+.feedback-list,
+.choice-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.scenario-card,
+.panel {
+  border: 1px solid #bdb8a9;
+  background: #fffdf7;
+  border-radius: 0.75rem;
+  padding: clamp(1rem, 4vw, 1.5rem);
+}
+
+.scenario-card {
+  display: grid;
+  justify-items: start;
+  width: 100%;
+  text-align: start;
+  gap: 0.35rem;
+}
+
+.scenario-card:hover {
+  border-color: #486353;
+  background: #f0f3e9;
+}
+
+.scenario-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.profession,
+.availability {
+  color: #555449;
+  font-size: 0.9rem;
+}
+
+.availability {
+  width: fit-content;
+  border-radius: 0.3rem;
+  background: #ece8dc;
+  padding: 0.125rem 0.5rem;
+}
+
+.available {
+  background: #e0eddf;
+  color: #254a38;
+}
+
+.panel {
+  display: grid;
+  gap: 1rem;
+  justify-items: start;
+}
+
+.button {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  padding-inline: 1rem;
+  border: 1px solid transparent;
+  border-radius: 0.35rem;
+  font-weight: 650;
+}
+
+.primary {
+  color: #fffdf7;
+  background: #244c3a;
+}
+
+.primary:hover:not(:disabled) {
+  background: #183a2b;
+}
+
+.primary:disabled {
+  color: #59584f;
+  background: #e8e4d8;
+}
+
+.secondary {
+  border-color: #bdb8a9;
+}
+
+.secondary:hover,
+.back:hover {
+  background: #ece8dc;
+}
+
+.back {
+  margin-block-end: 0.75rem;
+  padding-inline: 0.5rem;
+}
+
+.dialogue,
+.feedback-list li {
+  width: 100%;
+  border-inline-start: 3px solid #8b886f;
+  background: #f3efe4;
+  padding: 0.75rem 1rem;
+}
+
+.dialogue-label {
+  color: #505144;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.choice-list {
+  width: 100%;
+  min-width: 0;
+}
+
+.choice-list legend {
+  margin-block-end: 0.5rem;
+  font-weight: 650;
+}
+
+.choice {
+  padding: 0.75rem 1rem;
+  border: 1px solid #bdb8a9;
+  border-radius: 0.4rem;
+  text-align: start;
+}
+
+.choice:hover:not(:disabled),
+.choice[aria-pressed="true"] {
+  border-color: #486353;
+  background: #edf3e9;
+}
+
+.choice[aria-pressed="true"] {
+  box-shadow: inset 3px 0 #486353;
+}
+
+.reaction {
+  border-color: #486353;
+  background: #edf3e9;
+  margin-block-end: 1rem;
+}
+
+.turn-actions {
+  width: 100%;
+}
+
+.feedback {
+  margin-block-start: 0.5rem;
+  color: #285340;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.practice,
+.practice-results {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 0.75rem;
+}
+
+.voice-call {
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  padding: clamp(1rem, 4vw, 1.75rem);
+  border-radius: 1.1rem;
+  background: radial-gradient(ellipse at 50% 12%, #315947, #183b30 62%, #122e27);
+  color: #f5f8ed;
+  text-align: center;
+}
+
+.call-round,
+.call-status,
+.call-note {
+  color: #c9e0d1;
+  font-size: 0.9rem;
+}
+
+.call-round {
+  justify-self: end;
+}
+
+.call-person {
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+}
+
+.portrait {
+  width: 7rem;
+  height: 7rem;
+  margin-block-end: 0.8rem;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 0 1px #93b49b, 0 0 0 7px #ffffff17;
+}
+
+.portrait.speaking {
+  box-shadow: 0 0 0 3px #c9ef9f, 0 0 0 10px #c9ef9f32;
+}
+
+.call-person h3 {
+  font-size: 1.5rem;
+}
+
+.call-caption,
+.call-retry {
+  width: min(100%, 30rem);
+  padding: 0.7rem 0.9rem;
+  border: 1px solid #b1d6bf32;
+  border-radius: 0.75rem;
+  background-color: #0d261f73;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.call-microphone {
+  display: grid;
+  justify-items: center;
+  gap: 0.4rem;
+  min-width: 6.5rem;
+  font-weight: 700;
+}
+
+.call-mic-disc {
+  display: grid;
+  place-items: center;
+  width: 4rem;
+  height: 4rem;
+  border-radius: 50%;
+  color: #153327;
+  background: #cfeda7;
+}
+
+.call-microphone[data-recording="true"] .call-mic-disc {
+  background: #f3b0a7;
+  box-shadow: 0 0 0 6px #f3b0a728;
+}
+
+.call-microphone:hover:not(:disabled) .call-mic-disc {
+  filter: brightness(1.1);
+}
+
+.call-mic-icon {
+  position: relative;
+  display: block;
+  width: 1.2rem;
+  height: 1rem;
+  margin-block-start: 0.15rem;
+  border: 2px solid currentColor;
+  border-top: 0;
+  border-radius: 0 0 0.65rem 0.65rem;
+}
+
+.call-mic-icon::before,
+.call-mic-icon::after {
+  position: absolute;
+  inset-inline-start: 50%;
+  content: "";
+  background: currentColor;
+  transform: translateX(-50%);
+}
+
+.call-mic-icon::before {
+  inset-block-end: 0.2rem;
+  width: 0.5rem;
+  height: 1rem;
+  border-radius: 0.35rem;
+}
+
+.call-mic-icon::after {
+  inset-block-end: -0.3rem;
+  width: 0.55rem;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.call-stop-icon {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 0.16rem;
+  background: currentColor;
+}
+
+.call-playback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem 0.8rem;
+  color: #e0ece3;
+  font-size: 0.9rem;
+}
+
+.call-playback button,
+.call-playback label,
+.call-speaker,
+.call-results {
+  min-height: 2.75rem;
+}
+
+.call-playback label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.call-playback select,
+.call-speaker,
+.call-results {
+  border: 1px solid #80aa94;
+  border-radius: 0.45rem;
+  padding: 0.3rem 0.65rem;
+  background: #224839;
+}
+
+.call-speaker:hover:not(:disabled),
+.call-results:hover:not(:disabled) {
+  border-color: #d0eda7;
+}
+
+.call-results {
+  background: #cfeda7;
+  border-color: #cfeda7;
+  color: #153327;
+  font-weight: 700;
+}
+
+.voice-call :is(button, select):focus-visible {
+  outline-color: #e2f7ad;
+}
+
+.voice-call button:disabled {
+  opacity: 0.58;
+}
+
+.call-retry > :first-child {
+  font-weight: 700;
+}
+
+.call-retry button {
+  margin-block-start: 0.5rem;
+}
+
+.call-details {
+  min-width: 0;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid #ded8c7;
+  border-radius: 0.6rem;
+}
+
+.call-details summary {
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.call-details ol {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.call-details ol,
+.call-details ul {
+  margin-block: 0.55rem;
+}
+
+.call-details ul,
+.practice-results ul {
+  padding-inline-start: 1.25rem;
+  list-style: disc;
+}
+
+.practice-results h4 {
+  font-weight: 700;
+}
+
+.voice-note {
+  color: #555449;
+  font-size: 0.9rem;
+}
+
+.dialogue {
+  border-radius: 0.3rem;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.dialogue.player {
+  background: #edf3e9;
+  border-color: #528067;
+}
+
+.scores {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.5rem;
+}
+
+.scores div {
+  border: 1px solid #ded8c7;
+  border-radius: 0.4rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.scores dd {
+  color: #254a38;
+  font-weight: 700;
+}
