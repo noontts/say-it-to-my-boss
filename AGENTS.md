@@ -23,7 +23,7 @@ Run `go test -race ./...` from `backend/`. Use Go's `testing` package with `Test
 
 ## Commit & Pull Request Guidelines
 
-Git history currently contains only `Initial commit`. Use a short, descriptive subject. In pull requests, summarize the change, list the checks you ran, link the related issue if available, and include screenshots or a short recording for visible UI or voice-flow changes.
+Use a short, descriptive subject. In pull requests, summarize the change, list the checks you ran, link the related issue if available, and include screenshots or a short recording for visible UI or voice-flow changes.
 
 ## Agent skills
 
@@ -37,4 +37,4 @@ Use the default triage vocabulary. Read [triage-labels.md](docs/agents/triage-la
 
 ### Domain docs
 
-This is a single-context repository. Read [domain.md](docs/agents/domain.md) when working with domain terminology or architectural decisions.
+Read [domain.md](docs/agents/domain.md) before changing scenario rules, session behavior, scoring, voice calls, or providers. It links to the shared glossary and the relevant feature notes.

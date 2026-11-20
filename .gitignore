@@ -7,3 +7,5 @@ frontend/dist/
 frontend/playwright-report/
 frontend/test-results/
 backend/server
+tts/.venv/
+tts/voices/

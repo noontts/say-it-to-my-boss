@@ -13,10 +13,6 @@ declare global {
       recognitionStarts: string[]
       played: { path: string; rate: number }[]
     }
-    synthesisTest: {
-      spoken: { text: string; lang: string }[]
-      finish: () => void
-    }
   }
 }
 
@@ -398,10 +394,8 @@ test('the player can hang up while a reply is pending and still view results', a
   await expect(page.getByRole('region', { name: 'ผลการฝึก' })).toBeVisible()
 })
 
-test('an AI closing reply without a voice clip still plays the end tone', async ({ page }) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(window.speechSynthesis, 'getVoices', { value: () => [] })
-  })
+test('an unavailable speech worker leaves the closing reply visible and plays the end tone', async ({ page }) => {
+  await page.route('**/api/v1/sessions/*/voice/6', (route) => route.fulfill({ status: 502 }))
   const closingLine = 'ขอบคุณค่ะ เราตกลงตามนี้นะคะ'
   await page.route('**/api/v1/sessions/*/messages', async (route) => {
     const response = await route.fetch()
@@ -416,37 +410,18 @@ test('an AI closing reply without a voice clip still plays the end tone', async 
     await speak(page, reply)
   }
   await expect(page.getByText(closingLine)).toBeVisible()
-  await expect(page.getByText(/ไม่มีเสียงสังเคราะห์ภาษาไทย/)).toBeVisible()
+  await expect(page.getByText(/เล่นเสียงไม่ได้/)).toBeVisible()
   await expectClip(page, endTone)
 })
 
-test('AI replies use live Thai synthesis and the end tone follows the final reply', async ({ page }) => {
+test('AI replies play session audio before the end tone', async ({ page }) => {
   const generated = [
     'ขอบคุณที่แจ้งค่ะ ส่งภาพหลักได้วันไหนคะ?',
     'ได้ค่ะ แล้วไฟล์ที่เหลือจะตามมาเมื่อไหร่คะ?',
     'งั้นฉันจะจองคิวทีมไว้วันอังคารค่ะ',
   ]
-  await page.addInitScript(() => {
-    const state: Window['synthesisTest'] = { spoken: [], finish: () => {} }
-    window.synthesisTest = state
-    class Utterance {
-      lang = ''
-      onstart: (() => void) | null = null
-      onend: (() => void) | null = null
-      constructor(readonly text: string) {}
-    }
-    const synth = Object.assign(new EventTarget(), {
-      getVoices: () => [{ lang: 'th-TH', localService: true }],
-      cancel: () => {},
-      speak: (utterance: Utterance) => {
-        state.spoken.push({ text: utterance.text, lang: utterance.lang })
-        utterance.onstart?.()
-        state.finish = () => utterance.onend?.()
-      },
-    })
-    Object.defineProperty(window, 'SpeechSynthesisUtterance', { value: Utterance })
-    Object.defineProperty(window, 'speechSynthesis', { value: synth })
-  })
+  await page.route('**/api/v1/sessions/*/voice/*', (route) =>
+    route.fulfill({ path: 'public/voices/angry-boss-interject.mp3', contentType: 'audio/mpeg' }))
   await page.route('**/api/v1/sessions/*/messages', async (route) => {
     const response = await route.fetch()
     const session = await response.json()
@@ -459,11 +434,16 @@ test('AI replies use live Thai synthesis and the end tone follows the final repl
   for (const [turn, reply] of scenario.replies.entries()) {
     await expectRecognitionStarts(page, turn + 1)
     await speak(page, reply)
-    await expect.poll(() => page.evaluate(() => window.synthesisTest.spoken.at(-1)))
-      .toEqual({ text: generated[turn], lang: 'th-TH' })
     await expect(page.getByText(generated[turn])).toBeVisible()
-    expect(await page.evaluate(() => window.practiceTest.played.map(({ path }) => path))).not.toContain(endTone)
-    await page.evaluate(() => window.synthesisTest.finish())
+    const sessionId = new URL(page.url()).searchParams.get('session')
+    const voicePath = `/api/v1/sessions/${sessionId}/voice/${(turn + 1) * 2}`
+    await expect.poll(() => page.evaluate(() => window.practiceTest.played.map(({ path }) => path)))
+      .toContain(voicePath)
+    if (turn < generated.length - 1) {
+      expect(await page.evaluate(() => window.practiceTest.played.map(({ path }) => path))).not.toContain(endTone)
+    }
   }
   await expectClip(page, endTone)
+  const paths = await page.evaluate(() => window.practiceTest.played.map(({ path }) => path))
+  expect(paths.at(-2)).toMatch(/\/voice\/6$/)
 })

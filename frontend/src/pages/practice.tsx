@@ -4,7 +4,7 @@ import { useNpcVoice } from '../hooks/use-npc-voice'
 import { PracticeResults } from '../components/practice-results'
 import type { ScenarioSummary } from '../types/scenario'
 import {
-  PracticeError, finishSession, hangUpSession, readSession, sendMessage, startSession, updatePracticeURL,
+  PracticeError, finishSession, hangUpSession, npcVoiceURL, readSession, sendMessage, startSession, updatePracticeURL,
   type Session, type TurnSubmission,
 } from '../services/practice'
 
@@ -241,7 +241,7 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
     const closing = next.status !== 'active'
     voice.play(message.text, closing ? (finished) => {
       if (finished) signalCallEnd(next.id)
-    } : undefined, next.mode === 'ai')
+    } : undefined, npcVoiceURL(next, next.messages.length - 1))
   }
 
   const requestingMicrophone = speech.status === 'requesting'
@@ -308,10 +308,10 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
   }
 
   const endedAfterSilence = session.endReason === 'silence'
-  const latestReply = (endedAfterSilence ? undefined : currentBossLines?.at(-1)?.text) ??
-    session.messages.at(-1)?.text ?? ''
-  const liveVoice = session.mode === 'ai'
-  const hasAudio = voice.canPlay(latestReply, liveVoice)
+  const latestBossLine = endedAfterSilence ? undefined : currentBossLines?.at(-1)
+  const latestReply = latestBossLine?.text ?? session.messages.at(-1)?.text ?? ''
+  const voiceURL = latestBossLine ? undefined : npcVoiceURL(session, session.messages.length - 1)
+  const hasAudio = voice.canPlay(latestReply, voiceURL)
   const tooLong = unsentReply !== null && isTooLong(unsentReply)
 
   let callStatus = 'ไมค์ปิดอยู่'
@@ -326,6 +326,7 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
   else if (takingFloor) callStatus = 'หัวหน้าพูดแทรกอยู่ รอให้พูดจบแล้วตอบอีกครั้ง'
   else if (busy) callStatus = 'กำลังตอบ…'
   else if (requestingMicrophone) callStatus = 'กำลังขอใช้ไมโครโฟน…'
+  else if (voice.preparing) callStatus = 'กำลังเตรียมเสียง…'
   else if (voice.speaking) callStatus = listening ? 'กำลังพูด · ไมค์เปิดอยู่' : 'กำลังพูด…'
   else if (listening) callStatus = 'กำลังฟัง…'
 
@@ -336,7 +337,7 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
         <div className="call-person">
           {scenario.character && (
             <img
-              className={voice.speaking ? 'portrait speaking' : 'portrait'}
+              className={voice.speaking && !voice.preparing ? 'portrait speaking' : 'portrait'}
               src={`/avatars/${scenarioId}.jpg`}
               alt=""
               width="112"
@@ -400,7 +401,7 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
         {hasAudio && (active || voice.speaking) && (
           <div className="call-playback">
             <button className="call-speaker" aria-label="เสียงคู่สนทนา" aria-pressed={voice.enabled}
-              onClick={() => voice.toggle(latestReply, liveVoice)}>
+              onClick={() => voice.toggle(latestReply, voiceURL)}>
               {voice.enabled ? 'เปิดเสียงอยู่' : 'ปิดเสียงอยู่'}
             </button>
             {voice.enabled && (
@@ -415,9 +416,7 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
             )}
           </div>
         )}
-        {!hasAudio && <p className="call-note">{liveVoice
-          ? 'เบราว์เซอร์นี้ไม่มีเสียงสังเคราะห์ภาษาไทย อ่านคำตอบได้ในบทสนทนา'
-          : 'ข้อความนี้มีให้อ่านบนหน้าจอ'}</p>}
+        {!hasAudio && <p className="call-note">ข้อความนี้มีให้อ่านบนหน้าจอ</p>}
         {voice.failed && <p className="call-note" role="status">เล่นเสียงไม่ได้ อ่านคำตอบได้ในบทสนทนา</p>}
         {active && !speech.supported && <p className="call-note" role="alert">เบราว์เซอร์นี้แปลงเสียงเป็นข้อความไม่ได้ ลองเปิดใน Chrome หรือ Safari</p>}
         {active && speech.error && <p className="call-note" role="alert">{speech.error}</p>}

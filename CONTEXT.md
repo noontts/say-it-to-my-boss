@@ -1,0 +1,61 @@
+# Say It to My Boss
+
+Players rehearse difficult workplace conversations in Thai and receive coaching on what they said and which objectives they met.
+
+## Language
+
+**Scenario**
+
+A workplace situation with an NPC, an opening line, a set of objectives, and conditions for success.
+
+**NPC**
+
+The workplace counterpart role-played in a scenario, such as the team lead, project client, or retail customer.
+
+**Practice session**
+
+One player's attempt at a scenario, from the opening line through the outcome and any results requested afterward.
+
+**Call**
+
+The live conversation portion of a practice session. The call ends when the turn limit is reached or someone hangs up.
+
+**Turn**
+
+One accepted player reply and the NPC's response to it. The opening line, interruptions, and silence reminder are outside that exchange.
+
+**Transcript**
+
+The dialogue shown during a call, including the NPC's opening line and the exchanges that follow.
+
+**Objective**
+
+A specific thing the player should accomplish through the conversation. An achieved objective stays achieved for the rest of the session.
+
+**Trust**
+
+A score representing the NPC's confidence in the player's handling of the conversation.
+
+**Mood**
+
+The NPC's current stance toward the player, based on trust.
+
+**Outcome**
+
+The end state of a practice session. It records whether the player succeeded or needs more practice.
+
+**Objective completion**
+
+The percentage of scenario objectives the player achieved.
+
+**Coaching**
+
+Feedback on the player's communication, including scores, strengths, suggestions, and a summary.
+
+**Results**
+
+The post-call view of the outcome, final trust, objective completion, and coaching.
+
+**Replay**
+
+A fresh practice session for the same scenario.

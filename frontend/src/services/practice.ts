@@ -54,6 +54,11 @@ export function readSession(id: string, signal: AbortSignal) {
   return request(`${sessions}/${encodeURIComponent(id)}`, signal)
 }
 
+export function npcVoiceURL(session: Session, index: number) {
+  if (session.mode !== 'ai' || session.messages[index]?.role !== 'npc') return undefined
+  return `${sessions}/${encodeURIComponent(session.id)}/voice/${index}`
+}
+
 export function sendMessage(id: string, input: TurnSubmission, signal: AbortSignal) {
   return request(`${sessions}/${encodeURIComponent(id)}/messages`, signal, input)
 }

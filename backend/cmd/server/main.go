@@ -30,12 +30,16 @@ func main() {
 	}
 
 	var ai game.PracticeAI
+	mockAI := os.Getenv("MOCK_OPENROUTER") == "true"
 	key := strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY"))
 	model := strings.TrimSpace(os.Getenv("OPENROUTER_MODEL"))
-	if (key == "") != (model == "") {
+	switch {
+	case mockAI:
+		ai = game.MockPracticeAI{}
+		log.Print("Using simulated OpenRouter replies")
+	case (key == "") != (model == ""):
 		log.Fatal("Set both OPENROUTER_API_KEY and OPENROUTER_MODEL to enable AI practice")
-	}
-	if key != "" {
+	case key != "":
 		ai = llm.NewOpenRouter(key, model)
 	}
 

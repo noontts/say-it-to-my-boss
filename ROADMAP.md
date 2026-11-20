@@ -1,5 +1,7 @@
 # ขอคุยกับหัวหน้า MVP roadmap
 
+For current implementation details, see [practice sessions](docs/features/practice.md), [voice calls](docs/features/voice-calls.md), and [dialogue and speech providers](docs/features/providers.md).
+
 The MVP lets players practice three difficult workplace conversations in Thai, reply by voice in a supporting browser, and receive coaching. Local mode uses scripted replies and phrase-based feedback. OpenRouter mode uses AI dialogue and evaluation.
 
 ## Phase 0 — Scripted practice · Complete

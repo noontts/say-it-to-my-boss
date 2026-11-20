@@ -19,7 +19,10 @@ export default defineConfig({
       command: 'go run ./cmd/server',
       cwd: '../backend',
       url: `${backendURL}/health`,
-      env: { PORT: String(backendPort), SCENARIOS_DIR: '../scenarios', OPENROUTER_API_KEY: '', OPENROUTER_MODEL: '' },
+      env: {
+        PORT: String(backendPort), SCENARIOS_DIR: '../scenarios',
+        OPENROUTER_API_KEY: '', OPENROUTER_MODEL: '', MOCK_OPENROUTER: 'false',
+      },
       timeout: 120_000,
       reuseExistingServer: false,
     },
