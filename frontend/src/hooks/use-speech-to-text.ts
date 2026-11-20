@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 interface RecognitionResult {
   isFinal: boolean
@@ -8,11 +8,11 @@ interface RecognitionResult {
 interface Recognition {
   lang: string
   continuous: boolean
+  interimResults: boolean
   onresult: ((event: { results: ArrayLike<RecognitionResult> }) => void) | null
   onerror: ((event: { error: string }) => void) | null
   onend: (() => void) | null
-  start(): void
-  stop(): void
+  start(track?: MediaStreamTrack): void
   abort(): void
 }
 
@@ -27,102 +27,169 @@ const SpeechRecognition = browser.SpeechRecognition ?? browser.webkitSpeechRecog
 const microphonePermission = 'อนุญาตให้เว็บไซต์ใช้ไมโครโฟนในการตั้งค่าเบราว์เซอร์แล้วลองอีกครั้ง หากยังใช้ไม่ได้ ให้เปิดแอปใน Chrome หรือ Safari โดยตรง'
 const voicePermission = 'เบราว์เซอร์ไม่อนุญาตให้แปลงเสียงเป็นข้อความ ลองเปิดแอปใน Chrome หรือ Safari โดยตรง'
 const microphoneUnavailable = 'ใช้ไมโครโฟนไม่ได้ ตรวจการเชื่อมต่อไมโครโฟนแล้วลองอีกครั้ง'
-const unavailable = 'แปลงเสียงเป็นข้อความไม่สำเร็จ ลองกดไมค์แล้วพูดอีกครั้ง'
+const unavailable = 'แปลงเสียงเป็นข้อความไม่สำเร็จ ลองเปิดไมค์อีกครั้ง'
 
 const errorMessages: Record<string, string> = {
   'not-allowed': voicePermission,
   'service-not-allowed': voicePermission,
   'audio-capture': microphoneUnavailable,
-  'no-speech': 'ไม่ได้ยินเสียง ลองกดไมค์แล้วพูดอีกครั้ง',
   'language-not-supported': 'เบราว์เซอร์แปลงเสียงภาษาไทยไม่ได้ ลองเปิดใน Chrome หรือ Safari',
 }
 
-type SpeechStatus = 'idle' | 'requesting' | 'listening' | 'stopping'
+type SpeechStatus = 'idle' | 'requesting' | 'listening'
+type Capture = {
+  stream?: MediaStream
+  recognition?: Recognition
+  timer?: number
+  listen?: () => void
+}
+type SpeechCallbacks = {
+  accept: (text: string) => boolean
+  onInterim: (text: string) => boolean
+  onComplete: (text: string) => void
+}
 
-export function useSpeechToText(onComplete: (text: string) => void) {
-  const active = useRef<{ recognition?: Recognition } | null>(null)
+const replyPause = 850
+const restartDelay = 300
+
+export function useSpeechToText(callbacks: SpeechCallbacks) {
+  const active = useRef<Capture | null>(null)
+  const latest = useRef(callbacks)
   const [status, setStatus] = useState<SpeechStatus>('idle')
   const [error, setError] = useState('')
+  const [preview, setPreview] = useState('')
 
-  useEffect(() => () => {
-    const attempt = active.current
+  useLayoutEffect(() => { latest.current = callbacks }, [callbacks])
+
+  const stop = useCallback(() => {
+    const capture = active.current
     active.current = null
-    attempt?.recognition?.abort()
+    window.clearTimeout(capture?.timer)
+    capture?.recognition?.abort()
+    capture?.stream?.getTracks().forEach((track) => track.stop())
+    setStatus('idle')
+    setPreview('')
   }, [])
+
+  useEffect(() => stop, [stop])
+
+  function discard() {
+    const capture = active.current
+    if (!capture?.listen) return
+    window.clearTimeout(capture.timer)
+    const recognition = capture.recognition
+    capture.recognition = undefined
+    recognition?.abort()
+    setPreview('')
+    capture.timer = window.setTimeout(capture.listen, restartDelay)
+  }
 
   async function start() {
     if (!SpeechRecognition || active.current) return
-    const attempt: { recognition?: Recognition } = {}
-    active.current = attempt
+    const Recognition = SpeechRecognition
+    const capture: Capture = {}
+    active.current = capture
     setError('')
+    setStatus('requesting')
 
-    function reset() {
-      if (active.current !== attempt) return false
-      active.current = null
-      setStatus('idle')
-      return true
+    function fail(message: string) {
+      if (active.current !== capture) return
+      stop()
+      setError(message)
     }
 
     if (navigator.mediaDevices?.getUserMedia) {
-      setStatus('requesting')
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        // SpeechRecognition opens its own stream. Release the permission probe first.
-        stream.getTracks().forEach((track) => track.stop())
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true },
+        })
+        if (active.current !== capture) {
+          stream.getTracks().forEach((track) => track.stop())
+          return
+        }
+        capture.stream = stream
       } catch (cause) {
-        if (!reset()) return
         const denied = cause instanceof DOMException && ['NotAllowedError', 'SecurityError'].includes(cause.name)
-        setError(denied ? microphonePermission : microphoneUnavailable)
+        fail(denied ? microphonePermission : microphoneUnavailable)
         return
       }
     }
-    if (active.current !== attempt) return
 
-    try {
-      const recognition = new SpeechRecognition()
-      attempt.recognition = recognition
-      recognition.lang = 'th-TH'
-      recognition.continuous = false
-      let transcript = ''
-      recognition.onresult = (event) => {
-        if (active.current !== attempt) return
-        transcript = Array.from(event.results)
-          .filter((result) => result.isFinal)
-          .map((result) => result[0].transcript.trim())
-          .filter(Boolean)
-          .join(' ')
-      }
-      recognition.onerror = (event) => {
-        if (reset()) setError(errorMessages[event.error] ?? unavailable)
-      }
-      recognition.onend = () => {
-        if (!reset()) return
-        if (transcript) {
-          onComplete(transcript)
-        } else {
-          setError(errorMessages['no-speech'])
+    function listen() {
+      if (active.current !== capture) return
+      try {
+        const recognition = new Recognition()
+        capture.recognition = recognition
+        recognition.lang = 'th-TH'
+        recognition.continuous = true
+        recognition.interimResults = true
+
+        let finalCount = 0
+        let reply: string[] = []
+        let interim = ''
+        const current = () => active.current === capture && capture.recognition === recognition
+
+        function submit() {
+          window.clearTimeout(capture.timer)
+          const text = reply.join(' ')
+          reply = []
+          interim = ''
+          setPreview('')
+          if (text) latest.current.onComplete(text)
         }
+
+        recognition.onresult = (event) => {
+          if (!current()) return
+          const fragments: string[] = []
+          const results = Array.from(event.results).slice(finalCount)
+          for (const result of results) {
+            if (result.isFinal) finalCount++
+            const text = result[0].transcript.trim()
+            if (!text || !latest.current.accept(text)) continue
+            if (result.isFinal) reply.push(text)
+            else fragments.push(text)
+          }
+          const nextInterim = fragments.join(' ')
+          if (!nextInterim && !interim && !reply.length) return
+          window.clearTimeout(capture.timer)
+          const text = [...reply, nextInterim].filter(Boolean).join(' ')
+          if (nextInterim && nextInterim !== interim && !latest.current.onInterim(text)) {
+            reply = []
+            interim = ''
+            setPreview('')
+            return
+          }
+          interim = nextInterim
+          setPreview(text)
+          if (!interim && reply.length) capture.timer = window.setTimeout(submit, replyPause)
+        }
+
+        function restart() {
+          if (!current()) return
+          capture.recognition = undefined
+          submit()
+          if (active.current === capture) capture.timer = window.setTimeout(listen, restartDelay)
+        }
+
+        recognition.onend = restart
+        recognition.onerror = ({ error }) => {
+          if (!current()) return
+          if (error === 'no-speech') restart()
+          else fail(errorMessages[error] ?? unavailable)
+        }
+
+        const track = capture.stream?.getAudioTracks()[0]
+        if (track) recognition.start(track)
+        else recognition.start()
+        setStatus('listening')
+      } catch (cause) {
+        fail(cause instanceof DOMException && cause.name === 'NotAllowedError' ? voicePermission : unavailable)
       }
-      setStatus('listening')
-      recognition.start()
-    } catch (cause) {
-      if (!reset()) return
-      setError(cause instanceof DOMException && cause.name === 'NotAllowedError' ? voicePermission : unavailable)
     }
+
+    capture.listen = listen
+    listen()
   }
 
-  function stop() {
-    const recognition = active.current?.recognition
-    if (!recognition || status !== 'listening') return
-    setStatus('stopping')
-    try {
-      recognition.stop()
-    } catch {
-      active.current = null
-      setStatus('idle')
-      setError(unavailable)
-    }
-  }
-
-  return { supported: Boolean(SpeechRecognition), status, error, start, stop }
+  return { supported: Boolean(SpeechRecognition), status, error, preview, start, stop, discard }
 }

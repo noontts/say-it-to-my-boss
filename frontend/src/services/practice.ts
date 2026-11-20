@@ -10,6 +10,7 @@ export interface Session {
   turnLimit: number
   trust: number
   status: 'active' | 'succeeded' | 'needs_practice'
+  endReason?: 'silence' | 'player'
   mode: 'local' | 'ai'
   results?: {
     scores: Record<'clarity' | 'empathy' | 'professionalism' | 'problemSolving', number>
@@ -59,6 +60,10 @@ export function sendMessage(id: string, input: TurnSubmission, signal: AbortSign
 
 export function finishSession(id: string, signal: AbortSignal) {
   return request(`${sessions}/${encodeURIComponent(id)}/finish`, signal, {})
+}
+
+export function hangUpSession(id: string, input: { turn: number } | { reason: 'player' }, signal: AbortSignal) {
+  return request(`${sessions}/${encodeURIComponent(id)}/hang-up`, signal, input)
 }
 
 export function updatePracticeURL(scenarioId?: string, sessionId?: string) {

@@ -44,8 +44,14 @@ func main() {
 	router.GET("/health", func(ctx *gin.Context) { ctx.Status(http.StatusOK) })
 	transport.RegisterScenarios(router.Group("/api"), catalog)
 	api := router.Group("/api/v1")
+	practice := game.NewPractice(catalog, ai)
 	transport.RegisterPracticeScenarios(api, catalog)
-	transport.RegisterPractice(api, game.NewPractice(catalog, ai))
+	transport.RegisterPractice(api, practice)
+	workerURL := strings.TrimRight(os.Getenv("TTS_BACKEND_URL"), "/")
+	if workerURL == "" {
+		workerURL = "http://127.0.0.1:8091"
+	}
+	transport.RegisterPracticeVoice(api, practice, workerURL)
 
 	server := &http.Server{
 		Addr:              ":" + port,

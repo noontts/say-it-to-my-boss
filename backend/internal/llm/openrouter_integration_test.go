@@ -148,6 +148,58 @@ func TestPracticeWithMockOpenRouter(t *testing.T) {
 	}
 }
 
+func TestHangUpAfterAIReply(t *testing.T) {
+	catalog, err := game.LoadCatalog("../../../scenarios")
+	if err != nil {
+		t.Fatal(err)
+	}
+	scenario, ok := catalog.Get("angry-boss")
+	if !ok {
+		t.Fatal("missing boss scenario")
+	}
+	const sessions = "/api/v1/sessions"
+	for _, tc := range []struct {
+		reason string
+		input  any
+		extra  []game.Message
+	}{
+		{reason: "player", input: map[string]string{"reason": "player"}},
+		{reason: "silence", input: map[string]int{"turn": 1}, extra: []game.Message{
+			{Role: "npc", Text: "ทำไมยังไม่ตอบครับ?"},
+			{Role: "npc", Text: "งั้นไว้ค่อยคุยกันครับ"},
+		}},
+	} {
+		t.Run(tc.reason, func(t *testing.T) {
+			const answer = "ตอนนี้สรุปพร้อมแล้วค่ะ"
+			const reply = "งั้นขอสรุปที่พร้อมก่อนครับ"
+			delta := 10
+			ai, calls := mockOpenRouter(t, scenario.Practice.Persona, []mockCompletion{{
+				messages: []chatMessage{
+					{Role: "assistant", Content: scenario.Practice.Opening},
+					{Role: "user", Content: answer},
+				},
+				response: string(mockJSON(t, game.NPCReply{Text: reply, TrustDelta: &delta, Achieved: []string{}})),
+			}})
+			router := gin.New()
+			transport.RegisterPractice(router.Group("/api/v1"), game.NewPractice(catalog, ai))
+			app := httptest.NewServer(router)
+			defer app.Close()
+
+			state := mockSessionRequest(t, app, "POST", sessions, map[string]string{"scenarioId": scenario.ID}, http.StatusCreated)
+			path := sessions + "/" + state.ID
+			state = mockSessionRequest(t, app, "POST", path+"/messages", game.SubmitInput{
+				RequestID: "answer", Turn: 0, Text: answer,
+			}, http.StatusOK)
+			ended := mockSessionRequest(t, app, "POST", path+"/hang-up", tc.input, http.StatusOK)
+			want := append(state.Messages, tc.extra...)
+			if ended.Mode != "ai" || ended.EndReason != tc.reason || ended.Status != "needs_practice" ||
+				!reflect.DeepEqual(ended.Messages, want) || calls.Load() != 1 {
+				t.Fatalf("unexpected hang-up after AI reply: %+v, provider calls: %d", ended, calls.Load())
+			}
+		})
+	}
+}
+
 type mockCompletion struct {
 	messages []chatMessage
 	response string

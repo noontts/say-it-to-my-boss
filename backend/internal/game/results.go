@@ -55,7 +55,7 @@ func validCoachingText(text string) bool {
 func (p *Practice) Finish(ctx context.Context, id string) (Session, error) {
 	p.mu.Lock()
 	entry, ok := p.sessions[id]
-	if !ok || (!entry.busy && !entry.expires.After(time.Now())) {
+	if !ok || (!entry.busy() && !entry.expires.After(time.Now())) {
 		p.mu.Unlock()
 		return Session{}, ErrNotFound
 	}
@@ -64,17 +64,17 @@ func (p *Practice) Finish(ctx context.Context, id string) (Session, error) {
 		p.mu.Unlock()
 		return state, nil
 	}
-	if entry.state.Status == "active" || entry.busy {
+	if entry.state.Status == "active" || entry.evaluating {
 		p.mu.Unlock()
 		return Session{}, ErrConflict
 	}
-	entry.busy = true
+	entry.evaluating = true
 	state := snapshot(entry.state)
 	p.mu.Unlock()
 
 	defer func() {
 		p.mu.Lock()
-		entry.busy = false
+		entry.evaluating = false
 		p.mu.Unlock()
 	}()
 

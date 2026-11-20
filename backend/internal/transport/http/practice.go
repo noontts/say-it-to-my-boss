@@ -45,6 +45,19 @@ func RegisterPractice(api *gin.RouterGroup, practice *game.Practice) {
 		state, err := practice.Finish(ctx.Request.Context(), ctx.Param("id"))
 		writeSession(ctx, http.StatusOK, state, err)
 	})
+	api.POST("/sessions/:id/hang-up", func(ctx *gin.Context) {
+		var input struct {
+			Turn   *int   `json:"turn"`
+			Reason string `json:"reason"`
+		}
+		if !readJSON(ctx, &input) ||
+			!(input.Turn != nil && input.Reason == "" || input.Turn == nil && input.Reason == "player") {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid turn"})
+			return
+		}
+		state, err := practice.EndCall(ctx.Param("id"), input.Turn)
+		writeSession(ctx, http.StatusOK, state, err)
+	})
 }
 
 func readJSON(ctx *gin.Context, target any) bool {

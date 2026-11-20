@@ -42,6 +42,11 @@ func TestOpenRouterIncludesHistoryAndParsesReply(t *testing.T) {
 		if payload.Messages[4].Content != "ก่อนห้าโมงค่ะ" {
 			t.Error("latest player message missing")
 		}
+		system := payload.Messages[0].Content
+		if !strings.Contains(system, "ตัวละคร: พี่นนท์") ||
+			!strings.Contains(system, "แนวทางการเล่นบท: เรียกตัวเองว่าผม") {
+			t.Error("system prompt is missing the character name or persona")
+		}
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Body: io.NopCloser(strings.NewReader(
@@ -49,7 +54,10 @@ func TestOpenRouterIncludesHistoryAndParsesReply(t *testing.T) {
 			)),
 		}, nil
 	})
-	scenario := game.Scenario{Practice: &game.PracticeSpec{Persona: "หัวหน้า"}}
+	scenario := game.Scenario{
+		Summary:  game.Summary{Character: "พี่นนท์ · หัวหน้าทีม"},
+		Practice: &game.PracticeSpec{Persona: "เรียกตัวเองว่าผม"},
+	}
 	state := game.Session{
 		Turn: 1, TurnLimit: 3, Trust: 50,
 		Messages: []game.Message{

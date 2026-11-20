@@ -79,3 +79,46 @@ func TestPracticeCommitsOnlyValidTurns(t *testing.T) {
 		t.Fatalf("submission after completion returned %v", err)
 	}
 }
+
+func TestPlayerHangUpCancelsPendingReply(t *testing.T) {
+	catalog, err := game.LoadCatalog("../../../scenarios")
+	if err != nil {
+		t.Fatal(err)
+	}
+	replyContext := make(chan context.Context, 1)
+	releaseReply := make(chan struct{})
+	defer close(releaseReply)
+	practice := game.NewPractice(catalog, replyFunc(func(ctx context.Context, _ game.Scenario, _ game.Session, _ string) (game.NPCReply, error) {
+		replyContext <- ctx
+		<-releaseReply
+		delta := 20
+		return game.NPCReply{Text: "ตกลงครับ", TrustDelta: &delta, Achieved: []string{}}, nil
+	}))
+	initial, err := practice.Start("demanding-client")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := make(chan error, 1)
+	go func() {
+		_, err := practice.Submit(context.Background(), initial.ID, game.SubmitInput{
+			RequestID: "pending", Turn: 0, Text: "ขอตรวจสอบก่อนค่ะ",
+		})
+		result <- err
+	}()
+	ctx := <-replyContext
+	ended, err := practice.EndCall(initial.ID, nil)
+	if err != nil || ended.EndReason != "player" || ended.Status != "needs_practice" {
+		t.Fatalf("unexpected hang-up state: %+v, %v", ended, err)
+	}
+	if ctx.Err() != context.Canceled {
+		t.Fatalf("pending reply context was not canceled: %v", ctx.Err())
+	}
+	releaseReply <- struct{}{}
+	if err := <-result; !errors.Is(err, game.ErrConflict) {
+		t.Fatalf("late reply returned %v", err)
+	}
+	saved, err := practice.Get(initial.ID)
+	if err != nil || saved.EndReason != "player" || saved.Turn != 0 || len(saved.Messages) != 1 {
+		t.Fatalf("late reply changed ended session: %+v, %v", saved, err)
+	}
+}

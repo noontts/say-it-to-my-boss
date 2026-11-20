@@ -62,6 +62,42 @@ func TestAllScenariosFinishAndReplay(t *testing.T) {
 	}
 }
 
+func TestHangUpAfterSilence(t *testing.T) {
+	catalog, err := game.LoadCatalog("../../../../scenarios")
+	if err != nil {
+		t.Fatal(err)
+	}
+	router := gin.New()
+	transport.RegisterPractice(router.Group("/api/v1"), game.NewPractice(catalog, nil))
+
+	const sessions = "/api/v1/sessions"
+	session := postSession(t, router, sessions, map[string]string{"scenarioId": "angry-boss"}, http.StatusCreated)
+	path := sessions + "/" + session.ID
+	answer := game.SubmitInput{RequestID: "first", Turn: 0, Text: "ขอโทษค่ะ เพราะยังตรวจตัวเลขอยู่ ตอนนี้สรุปพร้อมแล้วค่ะ"}
+	progress := postSession(t, router, path+"/messages", answer, http.StatusOK)
+	postSession(t, router, path+"/hang-up", map[string]int{"turn": 0}, http.StatusConflict)
+
+	input := map[string]int{"turn": 1}
+	ended := postSession(t, router, path+"/hang-up", input, http.StatusOK)
+	if ended.EndReason != "silence" || ended.Status != "needs_practice" || ended.Turn != progress.Turn ||
+		ended.Trust != progress.Trust || !reflect.DeepEqual(ended.Achieved, progress.Achieved) ||
+		len(ended.Messages) != len(progress.Messages)+2 ||
+		!reflect.DeepEqual(ended.Messages[len(progress.Messages):], []game.Message{
+			{Role: "npc", Text: "ทำไมยังไม่ตอบครับ?"},
+			{Role: "npc", Text: "งั้นไว้ค่อยคุยกันครับ"},
+		}) {
+		t.Fatalf("unexpected hang-up state: %+v", ended)
+	}
+	if retry := postSession(t, router, path+"/hang-up", input, http.StatusOK); !reflect.DeepEqual(ended, retry) {
+		t.Fatalf("retry changed the transcript: %+v", retry)
+	}
+	postSession(t, router, path+"/messages", game.SubmitInput{RequestID: "late", Turn: 1, Text: "ขอตอบค่ะ"}, http.StatusConflict)
+	finished := postSession(t, router, path+"/finish", nil, http.StatusOK)
+	if finished.Results == nil || finished.Results.ObjectiveCompletion == 0 {
+		t.Fatalf("coaching did not include completed practice: %+v", finished)
+	}
+}
+
 func playLocal(t *testing.T, router http.Handler, id string, turns []string, outcome string, objectiveScore int) game.Session {
 	t.Helper()
 	session := postSession(t, router, "/api/v1/sessions", map[string]string{"scenarioId": id}, http.StatusCreated)

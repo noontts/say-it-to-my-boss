@@ -95,6 +95,7 @@ type Session struct {
 	Trust      int         `json:"trust"`
 	Mood       string      `json:"mood"`
 	Status     string      `json:"status"`
+	EndReason  string      `json:"endReason,omitempty"`
 	Mode       string      `json:"mode"`
 	Results    *Results    `json:"results,omitempty"`
 }
@@ -121,7 +122,12 @@ type sessionEntry struct {
 	state       Session
 	submissions []SubmitInput
 	expires     time.Time
-	busy        bool
+	cancelReply context.CancelFunc
+	evaluating  bool
+}
+
+func (entry *sessionEntry) busy() bool {
+	return entry.cancelReply != nil || entry.evaluating
 }
 
 type Practice struct {
@@ -161,7 +167,7 @@ func (p *Practice) Start(scenarioID string) (Session, error) {
 	defer p.mu.Unlock()
 	now := time.Now()
 	for id, entry := range p.sessions {
-		if !entry.busy && !entry.expires.After(now) {
+		if !entry.busy() && !entry.expires.After(now) {
 			delete(p.sessions, id)
 		}
 	}
@@ -176,10 +182,53 @@ func (p *Practice) Get(id string) (Session, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	entry, ok := p.sessions[id]
-	if !ok || (!entry.busy && !entry.expires.After(time.Now())) {
+	if !ok || (!entry.busy() && !entry.expires.After(time.Now())) {
 		return Session{}, ErrNotFound
 	}
 	return snapshot(entry.state), nil
+}
+
+// EndCall with a turn ends a boss call after silence. Without a turn, the player is hanging up.
+func (p *Practice) EndCall(id string, silentTurn *int) (Session, error) {
+	if silentTurn != nil && *silentTurn < 0 {
+		return Session{}, ErrInvalidTurn
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	now := time.Now()
+	entry, ok := p.sessions[id]
+	if !ok || (!entry.busy() && !entry.expires.After(now)) {
+		return Session{}, ErrNotFound
+	}
+	state := &entry.state
+	if silentTurn != nil {
+		if state.ScenarioID != "angry-boss" || state.Turn != *silentTurn {
+			return Session{}, ErrConflict
+		}
+		if state.EndReason == "silence" {
+			return snapshot(*state), nil
+		}
+		if entry.busy() || state.Status != "active" {
+			return Session{}, ErrConflict
+		}
+		state.Messages = append(state.Messages,
+			Message{Role: "npc", Text: "ทำไมยังไม่ตอบครับ?"},
+			Message{Role: "npc", Text: "งั้นไว้ค่อยคุยกันครับ"},
+		)
+		state.EndReason = "silence"
+	} else {
+		if state.Status != "active" {
+			return snapshot(*state), nil
+		}
+		if entry.cancelReply != nil {
+			entry.cancelReply()
+		}
+		state.EndReason = "player"
+	}
+
+	state.Status = "needs_practice"
+	entry.expires = now.Add(sessionLifetime)
+	return snapshot(*state), nil
 }
 
 func (p *Practice) Submit(ctx context.Context, id string, input SubmitInput) (Session, error) {
@@ -190,7 +239,7 @@ func (p *Practice) Submit(ctx context.Context, id string, input SubmitInput) (Se
 	}
 	p.mu.Lock()
 	entry, ok := p.sessions[id]
-	if !ok || (!entry.busy && !entry.expires.After(time.Now())) {
+	if !ok || (!entry.busy() && !entry.expires.After(time.Now())) {
 		p.mu.Unlock()
 		return Session{}, ErrNotFound
 	}
@@ -204,17 +253,19 @@ func (p *Practice) Submit(ctx context.Context, id string, input SubmitInput) (Se
 			return state, nil
 		}
 	}
-	if entry.busy || entry.state.Status != "active" || input.Turn != entry.state.Turn {
+	if entry.busy() || entry.state.Status != "active" || input.Turn != entry.state.Turn {
 		p.mu.Unlock()
 		return Session{}, ErrConflict
 	}
-	entry.busy = true
+	replyContext, cancelReply := context.WithCancel(ctx)
+	entry.cancelReply = cancelReply
 	state := snapshot(entry.state)
 	p.mu.Unlock()
 
 	defer func() {
+		cancelReply()
 		p.mu.Lock()
-		entry.busy = false
+		entry.cancelReply = nil
 		p.mu.Unlock()
 	}()
 
@@ -225,12 +276,12 @@ func (p *Practice) Submit(ctx context.Context, id string, input SubmitInput) (Se
 		result = localReply(spec, state, input.Text)
 	} else {
 		var err error
-		result, err = p.ai.Reply(ctx, scenario, state, input.Text)
+		result, err = p.ai.Reply(replyContext, scenario, state, input.Text)
 		if err != nil {
 			return Session{}, ErrReplyFailed
 		}
 	}
-	if ctx.Err() != nil || !applyReply(&state, result) {
+	if !applyReply(&state, result) {
 		return Session{}, ErrReplyFailed
 	}
 	state.Messages = append(state.Messages, Message{Role: "player", Text: input.Text},
@@ -246,6 +297,12 @@ func (p *Practice) Submit(ctx context.Context, id string, input SubmitInput) (Se
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if entry.state.Status != "active" {
+		return Session{}, ErrConflict
+	}
+	if replyContext.Err() != nil {
+		return Session{}, ErrReplyFailed
+	}
 	entry.state = state
 	entry.submissions = append(entry.submissions, input)
 	entry.expires = time.Now().Add(sessionLifetime)
