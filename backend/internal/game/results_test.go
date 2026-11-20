@@ -28,7 +28,7 @@ func TestFinishRejectsInvalidCoachingAndSavesOneResult(t *testing.T) {
 	ai := practiceAI{
 		replyFunc: func(_ context.Context, _ game.Scenario, state game.Session, _ string) (game.NPCReply, error) {
 			delta := 10
-			return game.NPCReply{Text: "เข้าใจครับ", TrustDelta: &delta, Achieved: []string{state.Objectives[state.Turn].ID}}, nil
+			return game.NPCReply{Text: "เข้าใจครับ", TrustDelta: &delta, Achieved: []string{state.Objectives[state.Turn].ID}, EndCall: new(state.Turn == 2)}, nil
 		},
 		evaluate: func(state game.Session) (game.Coaching, error) {
 			calls++
@@ -55,7 +55,7 @@ func TestFinishRejectsInvalidCoachingAndSavesOneResult(t *testing.T) {
 	if _, err := practice.Finish(ctx, id); !errors.Is(err, game.ErrConflict) {
 		t.Fatalf("early finish error = %v", err)
 	}
-	for turn := 0; turn < state.TurnLimit; turn++ {
+	for turn := range len(state.Objectives) {
 		_, err := practice.Submit(ctx, id, game.SubmitInput{RequestID: fmt.Sprint(turn), Turn: turn, Text: "ขอส่งฉบับย่อก่อนห้าโมงค่ะ"})
 		if err != nil {
 			t.Fatal(err)

@@ -31,13 +31,16 @@ func TestPracticeCommitsOnlyValidTurns(t *testing.T) {
 		if calls == 1 {
 			close(replyStarted)
 			<-releaseReply
-			return game.NPCReply{Text: "invalid response"}, nil
+			return game.NPCReply{Text: "ไม่มีคำตัดสิน", TrustDelta: new(10), Achieved: []string{}}, nil
 		}
 		if len(state.Messages) != 2*state.Turn+1 {
 			t.Errorf("unexpected history: %+v", state.Messages)
 		}
-		delta := 20
-		return game.NPCReply{Text: "ตกลงครับ", TrustDelta: &delta, Achieved: []string{state.Objectives[state.Turn].ID}}, nil
+		achieved := []string{}
+		if state.Turn < len(state.Objectives) {
+			achieved = append(achieved, state.Objectives[state.Turn].ID)
+		}
+		return game.NPCReply{Text: "ตกลงครับ", TrustDelta: new(20), Achieved: achieved, EndCall: new(state.Turn == 3)}, nil
 	}))
 	state, err := practice.Start("angry-boss")
 	if err != nil {
@@ -71,10 +74,18 @@ func TestPracticeCommitsOnlyValidTurns(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if calls != 4 || saved.Status != "succeeded" || saved.Trust != 100 || len(saved.Messages) != 7 {
-		t.Fatalf("unexpected final state after %d reply attempts: %+v", calls, saved)
+	if calls != 4 || saved.Status != "active" || saved.TurnLimit != 0 || len(saved.Messages) != 7 {
+		t.Fatalf("AI should continue after three turns: %+v (calls %d)", saved, calls)
 	}
-	_, err = practice.Submit(context.Background(), state.ID, game.SubmitInput{RequestID: "extra", Turn: 3, Text: "เกินรอบ"})
+	last := game.SubmitInput{RequestID: "last", Turn: 3, Text: "ตกลงตามนี้ค่ะ"}
+	for range 2 {
+		saved, err = practice.Submit(context.Background(), state.ID, last)
+		if err != nil || saved.Status != "succeeded" || saved.EndReason != "npc" ||
+			saved.Trust != 100 || saved.Turn != 4 || len(saved.Messages) != 9 || calls != 5 {
+			t.Fatalf("unexpected final state after %d reply attempts: %+v, %v", calls, saved, err)
+		}
+	}
+	_, err = practice.Submit(context.Background(), state.ID, game.SubmitInput{RequestID: "extra", Turn: 4, Text: "ยังอยู่ไหม"})
 	if !errors.Is(err, game.ErrConflict) {
 		t.Fatalf("submission after completion returned %v", err)
 	}
@@ -92,7 +103,7 @@ func TestPlayerHangUpCancelsPendingReply(t *testing.T) {
 		replyContext <- ctx
 		<-releaseReply
 		delta := 20
-		return game.NPCReply{Text: "ตกลงครับ", TrustDelta: &delta, Achieved: []string{}}, nil
+		return game.NPCReply{Text: "ตกลงครับ", TrustDelta: &delta, Achieved: []string{}, EndCall: new(true)}, nil
 	}))
 	initial, err := practice.Start("demanding-client")
 	if err != nil {

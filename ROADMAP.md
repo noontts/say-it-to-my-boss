@@ -29,7 +29,7 @@ The MVP lets players practice three difficult workplace conversations in Thai, r
 ## Phase 3 — Thai voice input and output · Implemented
 
 - Use browser speech recognition with `th-TH` where supported. Send the final transcript automatically when recording ends.
-- Play bundled Thai speech for scripted NPC replies, with a distinct voice for each character. Include a voice toggle, rate control, and on-screen dialogue. Stop the previous clip when a new reply plays.
+- Synthesize all NPC lines on the server with a distinct Thai voice for each character. Include a voice toggle, rate control, and on-screen dialogue. Stop the previous clip when a new reply plays.
 - The call uses voice replies. Show microphone permission and compatibility messages, and keep the NPC caption and transcript available when Thai playback is unavailable.
 
 **Done when** a player can dictate a Thai reply that sends automatically and hear the response in a supported browser. The transcript remains available on screen.

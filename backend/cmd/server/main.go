@@ -31,12 +31,24 @@ func main() {
 
 	var ai game.PracticeAI
 	mockAI := os.Getenv("MOCK_OPENROUTER") == "true"
+	localModel := strings.TrimSpace(os.Getenv("LM_STUDIO_MODEL"))
 	key := strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY"))
 	model := strings.TrimSpace(os.Getenv("OPENROUTER_MODEL"))
 	switch {
 	case mockAI:
 		ai = game.MockPracticeAI{}
 		log.Print("Using simulated OpenRouter replies")
+	case localModel != "":
+		localAI, err := llm.NewLMStudio(
+			strings.TrimSpace(os.Getenv("LM_STUDIO_BASE_URL")),
+			strings.TrimSpace(os.Getenv("LM_STUDIO_API_TOKEN")),
+			localModel,
+		)
+		if err != nil {
+			log.Fatal(err)
+		}
+		ai = localAI
+		log.Printf("Using LM Studio model %q", localModel)
 	case (key == "") != (model == ""):
 		log.Fatal("Set both OPENROUTER_API_KEY and OPENROUTER_MODEL to enable AI practice")
 	case key != "":

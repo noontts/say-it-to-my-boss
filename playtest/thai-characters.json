@@ -1,6 +1,5 @@
 {
   "locale": "th-TH",
-  "clipMap": "frontend/src/data/npc-voices.json",
   "characters": {
     "angry-boss": {
       "name": "พี่นนท์",
@@ -8,9 +7,8 @@
       "avatar": "/avatars/angry-boss.jpg",
       "visualDirection": "หัวหน้าทีมออฟฟิศวัยกลางคน ผมสั้น เสื้อคลุมสีเขียวหม่นทับเสื้อยืด ฉากห้องประชุม สีหน้าจริงจังเหมือนกำลังรอฟังคำชี้แจง",
       "voice": {
-        "provider": "VachanaTTS",
-        "speakerId": "th_m_1",
-        "preview": "/voices/angry-boss-0.mp3",
+        "provider": "MakHamTTS",
+        "speakerId": "newvoice_male",
         "delivery": "น้ำเสียงหนักแน่น จังหวะกระชับ ใช้ผมและครับ ถามทีละประเด็นและผ่อนน้ำเสียงเมื่อได้คำตอบที่ชัด"
       }
     },
@@ -20,9 +18,8 @@
       "avatar": "/avatars/demanding-client.jpg",
       "visualDirection": "ผู้ดูแลแคมเปญในออฟฟิศ ผมรวบ เสื้อทำงานสีเขียวอมฟ้า ฉากโต๊ะประชุม มองตรงเหมือนกำลังรอเวลาส่งที่ยืนยันได้",
       "voice": {
-        "provider": "VachanaTTS",
-        "speakerId": "th_f_1",
-        "preview": "/voices/demanding-client-0.mp3",
+        "provider": "MakHamTTS",
+        "speakerId": "Paradee",
         "delivery": "พูดชัด สุภาพ และเข้าเรื่องเร็ว ใช้ทีมคุณกับทีมเรา ลงท้ายคำถามด้วยคะและประโยคบอกเล่าด้วยค่ะ"
       }
     },
@@ -32,9 +29,8 @@
       "avatar": "/avatars/difficult-customer.jpg",
       "visualDirection": "ลูกค้าวัยกลางคนที่แวะมาที่ร้าน เสื้อคลุมไหมพรมสีอิฐ กระเป๋าสะพาย ฉากชั้นวางสินค้า คิ้วขมวดเล็กน้อยเหมือนกำลังรอฟังทางเลือก",
       "voice": {
-        "provider": "VachanaTTS",
-        "speakerId": "th_f_2",
-        "preview": "/voices/difficult-customer-0.mp3",
+        "provider": "MakHamTTS",
+        "speakerId": "newvoice_female",
         "delivery": "เริ่มด้วยน้ำเสียงผิดหวังแต่สุภาพ ใช้ฉันและร้านคุณ ลงท้ายด้วยคะหรือค่ะ แล้วผ่อนเสียงเมื่อเข้าใจขั้นตอนถัดไป"
       }
     }
@@ -49,7 +45,6 @@
       "voice": {
         "provider": "VachanaTTS",
         "speakerId": "th_f_1",
-        "referenceClip": "/voices/demanding-client-0.mp3",
         "delivery": "พูดไวแบบคุยกันหลังร้าน เว้นจังหวะก่อนคำถาม ใช้คะหรือค่ะ"
       }
     },
@@ -62,7 +57,6 @@
       "voice": {
         "provider": "VachanaTTS",
         "speakerId": "th_m_1",
-        "referenceClip": "/voices/angry-boss-1.mp3",
         "delivery": "ลงน้ำหนักที่ชื่อชิ้นงานและเวลา ใช้จังหวะสั้น เสียงคงที่และเป็นกันเองกับทีม"
       }
     },
@@ -75,7 +69,6 @@
       "voice": {
         "provider": "VachanaTTS",
         "speakerId": "th_m_1",
-        "referenceClip": "/voices/angry-boss-3.mp3",
         "delivery": "เบาและเป็นกันเอง เว้นช่วงสั้น ๆ ระหว่างสองทางเลือก ลงท้ายครับ"
       }
     },
@@ -88,7 +81,6 @@
       "voice": {
         "provider": "VachanaTTS",
         "speakerId": "th_f_1",
-        "referenceClip": "/voices/demanding-client-3.mp3",
         "delivery": "พูดนิ่งและชัด เว้นจังหวะหลังข้อมูลแต่ละอย่าง ใช้นะคะเมื่อต้องขอความร่วมมือ"
       }
     },
@@ -101,7 +93,6 @@
       "voice": {
         "provider": "VachanaTTS",
         "speakerId": "th_f_2",
-        "referenceClip": "/voices/difficult-customer-3.mp3",
         "delivery": "อุ่นและเป็นกันเอง พูดช้าลงตอนบอกจำนวน ใช้คำลงท้ายตามความคุ้นเคย"
       }
     },
@@ -114,7 +105,6 @@
       "voice": {
         "provider": "VachanaTTS",
         "speakerId": "th_f_2",
-        "referenceClip": "/voices/difficult-customer-2.mp3",
         "delivery": "นุ่มและชัด ลดความเร็วตอนทวนวันเวลา แล้วขึ้นเสียงเล็กน้อยเมื่อถามยืนยัน"
       }
     }

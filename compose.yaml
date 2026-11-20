@@ -19,11 +19,28 @@ services:
       PORT: "8080"
       OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
       OPENROUTER_MODEL: "${OPENROUTER_MODEL:-}"
+      MOCK_OPENROUTER: "${MOCK_OPENROUTER:-false}"
+      LM_STUDIO_MODEL: "${LM_STUDIO_MODEL:-}"
+      LM_STUDIO_BASE_URL: "${LM_STUDIO_BASE_URL:-http://host.docker.internal:1234/v1}"
+      LM_STUDIO_API_TOKEN: "${LM_STUDIO_API_TOKEN:-}"
+      TTS_BACKEND_URL: "${TTS_BACKEND_URL:-http://tts:8091}"
     ports:
       - "127.0.0.1:${PORT:-8080}:8080"
     volumes:
       - ./backend:/app/backend
       - ./scenarios:/app/scenarios:ro
 
+  tts:
+    build: ./tts
+    volumes:
+      - tts_voices:/app/voices
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8091/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 2m
+
 volumes:
   frontend_node_modules:
+  tts_voices:

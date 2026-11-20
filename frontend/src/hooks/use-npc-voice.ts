@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import voices from '../data/npc-voices.json'
-
-const clipsByScenario = new Map(
-  Object.entries(voices).map(([scenario, clips]) => [scenario, new Map(Object.entries(clips))]),
-)
+import { createPcmPlayback, pcmStreamType } from './pcm-playback'
 
 const normalize = (text: string) => text.replace(/[\s\p{P}]/gu, '')
+// A silent PCM sample lets the Start Call tap activate the same player used for fetched speech.
+const silence = 'data:audio/wav;base64,UklGRiwAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQgAAACAgICAgICAgA=='
 
 type Playback = {
   cancel: () => void
@@ -13,15 +11,27 @@ type Playback = {
   done?: (finished: boolean) => void
 }
 
-export function useNpcVoice(scenarioId: string) {
-  const clips = clipsByScenario.get(scenarioId)
+export function useNpcVoice() {
   const [enabled, setEnabled] = useState(true)
   const [rate, setRate] = useState(1)
   const [speaking, setSpeaking] = useState(false)
-  const [failed, setFailed] = useState(false)
+  const [failure, setFailure] = useState<'blocked' | 'unavailable' | null>(null)
   const [preparing, setPreparing] = useState(false)
+  const player = useRef<HTMLAudioElement | null>(null)
+  const audioContext = useRef<AudioContext | null>(null)
+  const resuming = useRef<Promise<void> | null>(null)
+  const cached = useRef<{ url: string; source: string } | null>(null)
   const current = useRef<Playback | null>(null)
   const recentLine = useRef({ text: '', until: 0 })
+
+  function getPlayer() {
+    return player.current ??= new Audio()
+  }
+
+  const clearCache = useCallback(() => {
+    if (cached.current) URL.revokeObjectURL(cached.current.source)
+    cached.current = null
+  }, [])
 
   const stop = useCallback((finished = false) => {
     const previous = current.current
@@ -35,65 +45,150 @@ export function useNpcVoice(scenarioId: string) {
     previous?.done?.(finished)
   }, [])
 
-  useEffect(() => stop, [stop])
+  useEffect(() => () => {
+    stop()
+    player.current?.pause()
+    const context = audioContext.current
+    audioContext.current = null
+    resuming.current = null
+    if (context) void context.close().catch(() => {})
+    clearCache()
+  }, [stop, clearCache])
 
-  function complete(playback: Playback, failed = false, isSpeech = true) {
-    if (current.current !== playback) return
-    stop(true)
-    if (failed && isSpeech) setFailed(true)
+  function prime() {
+    try {
+      if (typeof AudioContext !== 'undefined') {
+        const context = audioContext.current ??= new AudioContext()
+        if (context.state !== 'running') resuming.current = context.resume().catch(() => {})
+      }
+    } catch {
+      // The media element can still play a WAV if Web Audio is unavailable.
+    }
+    if (current.current) return
+    const audio = getPlayer()
+    audio.src = silence
+    void audio.play().catch(() => {})
   }
 
-  function playAudio(source: string, text: string | null, done?: (finished: boolean) => void, live = false) {
+  function playAudio(url: string, text: string | null, done?: (finished: boolean) => void, wavOnly = false) {
     stop()
-    if (text !== null) setFailed(false)
+    const speech = text !== null
+    if (speech) setFailure(null)
 
-    const player = new Audio(source)
+    const audio = getPlayer()
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => complete('unavailable'), 10_000)
+    const context = audioContext.current
+    let pcm: ReturnType<typeof createPcmPlayback> | undefined
     const playback = {
       cancel: () => {
-        player.pause()
-        player.removeAttribute('src')
-        player.load()
+        window.clearTimeout(timeout)
+        controller.abort()
+        pcm?.cancel()
+        context?.removeEventListener('statechange', checkContext)
+        audio.onplaying = audio.onended = audio.onerror = null
+        audio.pause()
+        audio.removeAttribute('src')
+        audio.load()
       },
-      text: text === null ? '' : normalize(text),
+      text: speech ? normalize(text) : '',
       done,
     }
     current.current = playback
-    player.playbackRate = text === null ? 1 : rate
-    setSpeaking(text !== null)
-    setPreparing(live)
-    player.onplaying = () => {
+    setSpeaking(speech)
+    setPreparing(speech)
+
+    function checkContext() {
+      if (context?.state !== 'running') complete('blocked')
+    }
+
+    function complete(error: 'blocked' | 'unavailable' | null = null) {
+      if (current.current !== playback) return
+      stop(true)
+      if (error && speech) {
+        if (error === 'unavailable') clearCache()
+        setFailure(error)
+      }
+    }
+
+    function playSource(source: string) {
+      audio.src = source
+      audio.playbackRate = speech ? rate : 1
+      audio.onplaying = started
+      audio.onended = () => complete()
+      audio.onerror = () => complete('unavailable')
+      void audio.play().catch((error: unknown) => {
+        complete(error instanceof DOMException && error.name === 'NotAllowedError' ? 'blocked' : 'unavailable')
+      })
+    }
+
+    function started() {
+      window.clearTimeout(timeout)
       if (current.current === playback) setPreparing(false)
     }
-    player.onended = () => complete(playback)
-    const handleError = () => complete(playback, true, text !== null)
-    player.onerror = handleError
-    void player.play().catch(handleError)
-  }
 
-  function play(text: string, done?: (finished: boolean) => void, voiceURL?: string) {
-    const clip = clips?.get(text)
-    const source = clip ?? voiceURL
-    if (source) {
-      playAudio(source, text, done, !clip)
-      return
+    function cache(blob: Blob) {
+      const source = URL.createObjectURL(blob)
+      cached.current = { url, source }
+      return source
     }
 
-    stop()
-    setFailed(false)
-    done?.(true)
+    if (!speech) {
+      playSource(url)
+    } else if (cached.current?.url === url) {
+      playSource(cached.current.source)
+    } else {
+      clearCache()
+      const request = (accept: string) => fetch(url, { signal: controller.signal, headers: { Accept: accept } })
+      // WebKit can resolve resume() after the session request has already returned.
+      const stream = !wavOnly && context && typeof ReadableStream !== 'undefined'
+      void request(stream ? pcmStreamType : 'audio/wav').then(async (response) => {
+        if (current.current !== playback) return
+        if (response.headers.get('Content-Type') === pcmStreamType) {
+          if (context && context.state !== 'running' && resuming.current) {
+            await Promise.race([resuming.current, new Promise((resolve) => window.setTimeout(resolve, 200))])
+            if (current.current !== playback) return
+          }
+          if (response.ok && context?.state === 'running' && response.body) {
+            context.addEventListener('statechange', checkContext)
+            pcm = createPcmPlayback(context, rate, started, complete)
+            const blob = await pcm.read(response.body)
+            if (current.current !== playback) return
+            cache(blob)
+            pcm.finish()
+            return
+          }
+          void response.body?.cancel().catch(() => {})
+          response = await request('audio/wav')
+        }
+        if (!response.ok) throw new Error('Voice request failed')
+        const blob = await response.blob()
+        if (current.current !== playback) return
+        playSource(cache(blob))
+      }).catch(() => complete('unavailable'))
+    }
+  }
+
+  function play(url: string, text: string, done?: (finished: boolean) => void) {
+    playAudio(url, text, done)
+  }
+
+  function replay(url: string, text: string) {
+    if (cached.current?.url !== url) prime()
+    playAudio(url, text, undefined, failure === 'unavailable')
   }
 
   function playEndTone() {
-    playAudio('/sounds/call-ended.mp3', null)
+    playAudio('/sounds/call-ended.wav', null)
   }
 
-  function toggle(text: string, voiceURL?: string) {
+  function toggle(url: string, text: string) {
     setEnabled(!enabled)
     if (enabled) {
       stop()
-      setFailed(false)
+      setFailure(null)
     } else {
-      play(text, undefined, voiceURL)
+      replay(url, text)
     }
   }
 
@@ -104,7 +199,5 @@ export function useNpcVoice(scenarioId: string) {
       (performance.now() < recent.until && recent.text.includes(fragment))))
   }
 
-  const canPlay = (text: string, voiceURL?: string) => Boolean(clips?.has(text) || voiceURL)
-
-  return { canPlay, enabled, rate, setRate, speaking, preparing, failed, play, playEndTone, stop, toggle, isEcho }
+  return { enabled, rate, setRate, speaking, preparing, failure, prime, play, replay, playEndTone, stop, toggle, isEcho }
 }

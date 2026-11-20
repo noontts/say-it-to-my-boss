@@ -43,14 +43,14 @@ func TestOpenRouterIncludesHistoryAndParsesReply(t *testing.T) {
 			t.Error("latest player message missing")
 		}
 		system := payload.Messages[0].Content
-		if !strings.Contains(system, "ตัวละคร: พี่นนท์") ||
-			!strings.Contains(system, "แนวทางการเล่นบท: เรียกตัวเองว่าผม") {
+		if !strings.Contains(system, "NPC, พี่นนท์") ||
+			!strings.Contains(system, "NPC persona and responsibilities: เรียกตัวเองว่าผม") {
 			t.Error("system prompt is missing the character name or persona")
 		}
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Body: io.NopCloser(strings.NewReader(
-				`{"choices":[{"finish_reason":"stop","message":{"content":"{\"reply\":\"ตกลงครับ\",\"trustDelta\":10,\"achieved\":[\"partial-delivery\"]}"}}]}`,
+				`{"choices":[{"finish_reason":"stop","message":{"content":"{\"reply\":\"ตกลงครับ\",\"trustDelta\":10,\"achieved\":[\"partial-delivery\"],\"endCall\":false}"}}]}`,
 			)),
 		}, nil
 	})
@@ -68,7 +68,7 @@ func TestOpenRouterIncludesHistoryAndParsesReply(t *testing.T) {
 	}
 	reply, err := client.Reply(context.Background(), scenario, state, "ก่อนห้าโมงค่ะ")
 	if err != nil || reply.Text != "ตกลงครับ" || reply.TrustDelta == nil || *reply.TrustDelta != 10 ||
-		len(reply.Achieved) != 1 || reply.Achieved[0] != "partial-delivery" {
+		len(reply.Achieved) != 1 || reply.Achieved[0] != "partial-delivery" || reply.EndCall == nil || *reply.EndCall {
 		t.Fatalf("reply = %+v, error = %v", reply, err)
 	}
 }

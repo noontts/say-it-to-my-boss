@@ -1,4 +1,4 @@
-import { defineConfig } from '@playwright/test'
+import { defineConfig, devices } from '@playwright/test'
 
 const backendPort = 48080
 const frontendPort = 45173
@@ -10,9 +10,12 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   use: {
     baseURL: frontendURL,
-    viewport: { width: 390, height: 844 },
     trace: 'retain-on-failure',
   },
+  projects: [
+    { name: 'mobile-chromium', use: { ...devices['Pixel 7'] } },
+    { name: 'mobile-webkit', use: { ...devices['iPhone 13'] } },
+  ],
   webServer: [
     {
       name: 'Go backend',
@@ -22,6 +25,8 @@ export default defineConfig({
       env: {
         PORT: String(backendPort), SCENARIOS_DIR: '../scenarios',
         OPENROUTER_API_KEY: '', OPENROUTER_MODEL: '', MOCK_OPENROUTER: 'false',
+        LM_STUDIO_MODEL: '',
+        TTS_BACKEND_URL: process.env.TTS_BACKEND_URL ?? 'http://127.0.0.1:8091',
       },
       timeout: 120_000,
       reuseExistingServer: false,

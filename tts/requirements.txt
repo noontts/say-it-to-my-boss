@@ -1,2 +1,2 @@
-vachanatts==0.0.7
-requests>=2.32,<3
+PyThaiTTS==1.0.0
+onnxruntime==1.32.0

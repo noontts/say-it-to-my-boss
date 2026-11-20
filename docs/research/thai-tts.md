@@ -1,0 +1,43 @@
+# Thai text-to-speech for Say It to My Boss
+
+Reviewed 20 November 2026.
+
+Keep bundled MP3s for scripted lines and server-side Thai synthesis for new AI replies. The current VachanaTTS worker is a reasonable local baseline. Before hosting AI voice for multiple users, fix worker deployment and measure how quickly the player hears a reply under load. Compare managed voices if local quality or capacity falls short.
+
+## What the app does today
+
+- The browser plays a bundled clip for an exact scenario and line match. Openings, scripted replies, interruptions, and the boss’s reminder and goodbye are pre-generated. The bundled and live paths use the same VachanaTTS voices for each character, so players hear a consistent voice when a call switches from scripted dialogue to an AI reply. [Playback hook](../../frontend/src/hooks/use-npc-voice.ts) · [Voice assignments](../../playtest/thai-characters.json) · [README](../../README.md#run-locally)
+- When a saved AI reply needs audio, Gin sends the character and NPC text to a local Python worker. The worker generates a complete WAV and Gin reads the complete body before serving it. Failed synthesis leaves the committed reply in the transcript. The generated audio response uses `Cache-Control: no-store` and the endpoint synthesizes again on each request it receives, so replay can repeat the work. [Speech proxy](../../backend/internal/transport/http/voice.go) · [Worker](../../tts/server.py) · [Voice call behavior](../features/voice-calls.md)
+- The worker warms three voices at startup and serves one synthesis at a time, returning 503 on overlap. Gin currently maps that to 502 and permits up to 25 seconds for the worker request. Compose starts only Vite and Gin, and the default worker URL inside the Gin container points to its own loopback. Python recommends against using `http.server` in production. [Worker](../../tts/server.py) · [Speech proxy](../../backend/internal/transport/http/voice.go) · [Compose](../../compose.yaml) · [Provider configuration](../features/providers.md#generated-thai-audio) · [Python HTTP server documentation](https://docs.python.org/3/library/http.server.html)
+
+## Local synthesis measurement
+
+On an Apple Silicon Mac with cached models, the worker’s synthesis function ran three repetitions per character voice for each synthetic Thai workplace line. Each row has nine measurements. The 89-code-point line included an English acronym, an amount in baht, and a date. Warming all three cached voice models took 810 ms, excluding Python imports.
+
+| Line length in code points | Median synthesis | Observed range | Median audio duration |
+| --- | --- | --- | --- |
+| 33 | 46 ms | 39–70 ms | 2.5 s |
+| 89 | 210 ms | 186–375 ms | 8.1 s |
+| 140 | 233 ms | 211–267 ms | 10.9 s |
+
+This measures in-process synthesis on one machine. HTTP, browser playback, concurrent requests, cloud synthesis, and voice quality remain unmeasured.
+
+## What to improve first
+
+1. **Make generated audio deployable and bound the wait.** If hosting VachanaTTS, ship a managed worker on a private network with a production server and readiness after model warm-up. Size concurrency and a bounded queue against measured CPU and memory. Use a playback deadline based on call feel and preserve the transcript when audio misses it. Retain a way to replay the current line without resubmitting the player’s reply. [Worker](../../tts/server.py) · [Voice call behavior](../features/voice-calls.md) · [Python HTTP server documentation](https://docs.python.org/3/library/http.server.html)
+2. **Measure the stages of a turn.** Track end-of-speech to submission, submission to committed reply, and committed reply to the browser’s `playing` event. Record p50 and p95 plus timeouts, worker-busy responses, and playback failures at expected concurrency. Recognition already waits up to its configured 850 ms pause after final fragments on the normal submission path, and the OpenRouter reply must finish before generated speech starts. Try streaming if the measured speech stage dominates. Streaming the worker alone only helps if Gin and the browser can play before the complete audio arrives. Measure download size before changing WAV to a compressed format. [Call timing](../features/voice-calls.md#microphone-and-reply-submission) · [Dialogue provider](../features/providers.md#openrouter-contract) · [Speech proxy](../../backend/internal/transport/http/voice.go)
+3. **Reuse audio deliberately.** Deduplicate concurrent requests for the same committed line. If replay is common, consider short-lived private reuse scoped to the session and keyed by message, voice/model revision, and audio format. AI replies may contain details from the player’s message, so keep them out of shared public caches. Scripted assets can keep using the normal static asset path. [Speech proxy](../../backend/internal/transport/http/voice.go) · [Dialogue provider](../features/providers.md#openrouter-contract)
+4. **Verify playback in Safari on iPhone and Chrome.** The hook catches rejected `play()` calls but creates an `Audio` element per play. Reuse one media element across a call, test activation from the Start Call gesture, and give players a direct tap to replay when playback is denied. Preserve transcript and mute controls. Current Playwright cases simulate recognition and stub generated speech, so test actual synthesis and playback together as well. [Playback hook](../../frontend/src/hooks/use-npc-voice.ts) · [Browser tests](../../frontend/e2e/voice-call.spec.ts) · [WebKit autoplay guidance](https://webkit.org/blog/7734/auto-play-policy-changes-for-macos/) · [Chrome autoplay guidance](https://developer.chrome.com/blog/autoplay/)
+
+## Providers to audition
+
+| Option | What to evaluate |
+| --- | --- |
+| **VachanaTTS** | Keep as the baseline for local CPU synthesis and matching existing clips. The publisher’s model card lists MIT, ONNX, and VITS/Piper training tooling. The public card leaves the training corpus and speaker consent unspecified. The installed `0.0.7` package fetches missing models and speaker configuration from Hugging Face’s `main` branch. For a public release, confirm model provenance and pin model files or their checksums alongside the Python package. [Model card](https://huggingface.co/VIZINTZOR/VachanaTTS) · [Voice file with published checksum](https://huggingface.co/VIZINTZOR/VachanaTTS/blob/main/voices/th_m_1.onnx) · [Package source](https://github.com/VYNCX/VachanaTTS2/blob/main/vachanatts/main.py#L19-L33) · [Pinned package release](https://pypi.org/project/vachanatts/0.0.7/) |
+| **Google Cloud Chirp 3 HD** | A managed option with male and female `th-TH` voices and bidirectional streaming. Google lists US$30 per million characters above the free allowance and says it does not log Cloud TTS customer text or audio. Requests still send the NPC line to Google. [Voice list](https://docs.cloud.google.com/text-to-speech/docs/list-voices-and-types) · [Streaming](https://docs.cloud.google.com/text-to-speech/docs/create-audio-text-streaming) · [Pricing](https://cloud.google.com/text-to-speech/pricing) · [Data logging](https://docs.cloud.google.com/text-to-speech/docs/data-logging) |
+| **Azure Speech** | Another managed option with Thai Niwat, Premwadee, and Achara voices. The voice catalog also lists Thai HD voices with styles such as `serious`. Check the chosen voice’s style and region availability before testing. [Azure Speech voice catalog](https://learn.microsoft.com/azure/ai-services/speech-service/language-support?tabs=tts) |
+| **iApp ChindaTTS v3** | A Thai-focused candidate whose API documents Thai and English, preset speaking styles, and WAV or MP3 output. Audition mixed-language phrases and check whether the available stock voices suit all three characters. [Chinda TTS API](https://iapp.co.th/en/docs/speech/text-to-speech/text-to-speech-v3) |
+
+Browser `speechSynthesis` is a possible optional fallback where a Thai voice is detected. The available voices depend on the browser and device, the list can initially be empty, and some voices use remote services. That variability makes it a poor default for recognizable characters. [Web Speech API draft](https://webaudio.github.io/web-speech-api/#dom-speechsynthesis-getvoices)
+
+Use the same lines from all three scenarios for a blind native-Thai listening comparison. Include final particles, names, dates, numbers, Thai-English workplace terms, and short interruptions. Score clarity, pronunciation, natural pacing, character fit, and the transition from the opening to the generated reply. If a managed provider wins the comparison, regenerate the scripted clips with the selected character voices so the voice stays consistent throughout the call.

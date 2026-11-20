@@ -18,7 +18,7 @@ One player's attempt at a scenario, from the opening line through the outcome an
 
 **Call**
 
-The live conversation portion of a practice session. The call ends when the turn limit is reached or someone hangs up.
+The live conversation portion of a practice session. An AI NPC can choose when to hang up. Preset calls end at the turn limit. The player can hang up in either mode.
 
 **Turn**
 

@@ -65,7 +65,7 @@ func TestPracticeWithMockOpenRouter(t *testing.T) {
 					steps = append(steps, mockCompletion{messages: messages, timeout: true})
 				}
 				if turn == 1 {
-					steps = append(steps, mockCompletion{messages: messages, response: `{"reply":"บทตอบที่ไม่ควรถูกบันทึก","trustDelta":99,"achieved":[]}`})
+					steps = append(steps, mockCompletion{messages: messages, response: `{"reply":"บทตอบที่ไม่ควรถูกบันทึก","trustDelta":99,"achieved":[],"endCall":true}`})
 				}
 				delta := 10
 				achieved := []string{scenario.Practice.Objectives[turn].ID}
@@ -74,7 +74,7 @@ func TestPracticeWithMockOpenRouter(t *testing.T) {
 					achieved = []string{}
 				}
 				steps = append(steps, mockCompletion{messages: messages, response: string(mockJSON(t, game.NPCReply{
-					Text: tc.replies[turn], TrustDelta: &delta, Achieved: achieved,
+					Text: tc.replies[turn], TrustDelta: &delta, Achieved: achieved, EndCall: new(turn == len(tc.answers)-1),
 				}))})
 				history = append(messages, chatMessage{Role: "assistant", Content: tc.replies[turn]})
 				transcript = append(transcript, game.Message{Role: "player", Text: answer}, game.Message{Role: "npc", Text: tc.replies[turn]})
@@ -100,7 +100,7 @@ func TestPracticeWithMockOpenRouter(t *testing.T) {
 			const sessions = "/api/v1/sessions"
 			setup := map[string]string{"scenarioId": tc.scenario}
 			state := mockSessionRequest(t, app, "POST", sessions, setup, http.StatusCreated)
-			if state.Mode != "ai" || state.TurnLimit != len(tc.answers) || !reflect.DeepEqual(state.Messages, transcript[:1]) {
+			if state.Mode != "ai" || state.TurnLimit != 0 || !reflect.DeepEqual(state.Messages, transcript[:1]) {
 				t.Fatalf("unexpected AI session: %+v", state)
 			}
 			sessionPath := sessions + "/" + state.ID
@@ -128,7 +128,7 @@ func TestPracticeWithMockOpenRouter(t *testing.T) {
 				wantTrust, wantCompletion = 60, 66
 			}
 			want := &game.Results{Coaching: coaching, ObjectiveCompletion: wantCompletion}
-			if finished.Status != tc.outcome || finished.Trust != wantTrust || !reflect.DeepEqual(finished.Results, want) {
+			if finished.Status != tc.outcome || finished.EndReason != "npc" || finished.Trust != wantTrust || !reflect.DeepEqual(finished.Results, want) {
 				t.Fatalf("unexpected finished session: %+v, results: %+v", finished, finished.Results)
 			}
 			if restored := mockSessionRequest(t, app, "GET", sessionPath, nil, http.StatusOK); !reflect.DeepEqual(restored, finished) {
@@ -178,7 +178,7 @@ func TestHangUpAfterAIReply(t *testing.T) {
 					{Role: "assistant", Content: scenario.Practice.Opening},
 					{Role: "user", Content: answer},
 				},
-				response: string(mockJSON(t, game.NPCReply{Text: reply, TrustDelta: &delta, Achieved: []string{}})),
+				response: string(mockJSON(t, game.NPCReply{Text: reply, TrustDelta: &delta, Achieved: []string{}, EndCall: new(false)})),
 			}})
 			router := gin.New()
 			transport.RegisterPractice(router.Group("/api/v1"), game.NewPractice(catalog, ai))
@@ -206,7 +206,7 @@ type mockCompletion struct {
 	timeout  bool
 }
 
-func mockOpenRouter(t *testing.T, persona string, steps []mockCompletion) (*OpenRouter, *atomic.Int32) {
+func mockOpenRouter(t *testing.T, persona string, steps []mockCompletion) (*ChatCompletions, *atomic.Int32) {
 	t.Helper()
 	var calls atomic.Int32
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

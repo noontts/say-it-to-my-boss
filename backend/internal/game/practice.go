@@ -91,7 +91,7 @@ type Session struct {
 	Objectives []Objective `json:"objectives"`
 	Achieved   []string    `json:"achieved"`
 	Turn       int         `json:"turn"`
-	TurnLimit  int         `json:"turnLimit"`
+	TurnLimit  int         `json:"turnLimit,omitempty"`
 	Trust      int         `json:"trust"`
 	Mood       string      `json:"mood"`
 	Status     string      `json:"status"`
@@ -104,6 +104,7 @@ type NPCReply struct {
 	Text       string   `json:"reply"`
 	TrustDelta *int     `json:"trustDelta"`
 	Achieved   []string `json:"achieved"`
+	EndCall    *bool    `json:"endCall,omitempty"`
 }
 
 type PracticeAI interface {
@@ -151,15 +152,17 @@ func (p *Practice) Start(scenarioID string) (Session, error) {
 		return Session{}, ErrNotPlayable
 	}
 	mode := "local"
+	turnLimit := spec.TurnLimit
 	if p.ai != nil {
 		mode = "ai"
+		turnLimit = 0
 	}
 	objectives := make([]Objective, 0, len(spec.Objectives))
 	for _, objective := range spec.Objectives {
 		objectives = append(objectives, objective.Objective)
 	}
 	state := Session{
-		ID: rand.Text(), ScenarioID: scenarioID, TurnLimit: spec.TurnLimit,
+		ID: rand.Text(), ScenarioID: scenarioID, TurnLimit: turnLimit,
 		Messages: []Message{{Role: "npc", Text: spec.Opening}}, Objectives: objectives,
 		Achieved: []string{}, Trust: initialTrust, Mood: mood(initialTrust), Status: "active", Mode: mode,
 	}
@@ -212,7 +215,7 @@ func (p *Practice) EndCall(id string, silentTurn *int) (Session, error) {
 			return Session{}, ErrConflict
 		}
 		state.Messages = append(state.Messages,
-			Message{Role: "npc", Text: "ทำไมยังไม่ตอบครับ?"},
+			Message{Role: "npc", Text: bossReminder},
 			Message{Role: "npc", Text: "งั้นไว้ค่อยคุยกันครับ"},
 		)
 		state.EndReason = "silence"
@@ -277,7 +280,7 @@ func (p *Practice) Submit(ctx context.Context, id string, input SubmitInput) (Se
 	} else {
 		var err error
 		result, err = p.ai.Reply(replyContext, scenario, state, input.Text)
-		if err != nil {
+		if err != nil || result.EndCall == nil {
 			return Session{}, ErrReplyFailed
 		}
 	}
@@ -287,7 +290,10 @@ func (p *Practice) Submit(ctx context.Context, id string, input SubmitInput) (Se
 	state.Messages = append(state.Messages, Message{Role: "player", Text: input.Text},
 		Message{Role: "npc", Text: strings.TrimSpace(result.Text)})
 	state.Turn++
-	if state.Turn == state.TurnLimit {
+	if result.EndCall != nil && *result.EndCall {
+		state.EndReason = "npc"
+	}
+	if state.EndReason == "npc" || state.Turn == state.TurnLimit {
 		if len(state.Achieved) == len(state.Objectives) && state.Trust >= spec.MinimumTrust {
 			state.Status = "succeeded"
 		} else {

@@ -7,10 +7,10 @@ export interface Session {
   objectives: { id: string; description: string }[]
   achieved: string[]
   turn: number
-  turnLimit: number
+  turnLimit?: number
   trust: number
   status: 'active' | 'succeeded' | 'needs_practice'
-  endReason?: 'silence' | 'player'
+  endReason?: 'silence' | 'player' | 'npc'
   mode: 'local' | 'ai'
   results?: {
     scores: Record<'clarity' | 'empathy' | 'professionalism' | 'problemSolving', number>
@@ -55,8 +55,12 @@ export function readSession(id: string, signal: AbortSignal) {
 }
 
 export function npcVoiceURL(session: Session, index: number) {
-  if (session.mode !== 'ai' || session.messages[index]?.role !== 'npc') return undefined
+  if (session.messages[index]?.role !== 'npc') return undefined
   return `${sessions}/${encodeURIComponent(session.id)}/voice/${index}`
+}
+
+export function bossVoiceURL(session: Session, cue: 'interjection' | 'takeover' | 'reminder') {
+  return `${sessions}/${encodeURIComponent(session.id)}/voice/${cue}`
 }
 
 export function sendMessage(id: string, input: TurnSubmission, signal: AbortSignal) {

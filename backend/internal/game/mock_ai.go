@@ -28,6 +28,7 @@ func (MockPracticeAI) Reply(_ context.Context, scenario Scenario, state Session,
 	if lines := mockReplies[scenario.ID]; state.Turn < len(lines) {
 		reply.Text = lines[state.Turn]
 	}
+	reply.EndCall = new(state.Turn+1 == scenario.Practice.TurnLimit)
 	return reply, nil
 }
 

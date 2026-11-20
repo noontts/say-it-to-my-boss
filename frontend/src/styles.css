@@ -389,6 +389,23 @@ h3 {
   font-size: 0.9rem;
 }
 
+.call-text-reply {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.call-text-reply textarea {
+  width: 100%;
+  padding: 0.65rem;
+  font: inherit;
+  font-size: 1rem;
+  resize: vertical;
+}
+
+.call-text-reply button {
+  justify-self: start;
+}
+
 .call-playback button,
 .call-playback label,
 .call-speaker,
