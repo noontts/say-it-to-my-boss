@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react'
 import { playIncomingRing } from './incoming-ring'
 import { createOfficeScene, deskCamera, officePhoneInReach, officeSpawn, officeWalkable, type OfficeCamera } from './office-scene'
 
@@ -15,17 +15,21 @@ const touchControls = [
 type OfficeIncoming = {
   ringAt: number
   character: string
-  audio: AudioContext | null
+  audio: () => AudioContext | null
   busy: boolean
   error: string
   answer: () => void
 }
 
-export function Office({ incoming }: { incoming?: OfficeIncoming }) {
+export function Office({ incoming, resumeAtDesk, children }: {
+  incoming?: OfficeIncoming
+  resumeAtDesk?: boolean
+  children?: ReactNode
+}) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const heading = useRef<HTMLHeadingElement>(null)
   const answerButton = useRef<HTMLButtonElement>(null)
-  const camera = useRef<OfficeCamera>({ ...officeSpawn })
+  const camera = useRef<OfficeCamera>({ ...(resumeAtDesk ? deskCamera : officeSpawn) })
   const keys = useRef(new Set<string>())
   const drag = useRef<{ pointer: number; x: number; y: number } | null>(null)
   const answerLocked = useRef(false)
@@ -66,7 +70,7 @@ export function Office({ incoming }: { incoming?: OfficeIncoming }) {
     if (!muted.current && now >= nextRing.current) {
       nextRing.current = now + ringInterval
       try {
-        stopRing.current = playIncomingRing(incoming.audio, camera.current)
+        stopRing.current = playIncomingRing(incoming.audio(), camera.current)
       } catch { /* The phone still flashes if audio cannot play. */ }
     }
     return true
@@ -203,6 +207,7 @@ export function Office({ incoming }: { incoming?: OfficeIncoming }) {
               </>
             )}
           </div>
+          {children}
           {!rendererUnavailable && !incoming.busy && <span className="office-crosshair" aria-hidden="true" />}
           <div className="office-phone">
             {incoming.busy ? <p role="status">กำลังต่อสาย…</p> : (

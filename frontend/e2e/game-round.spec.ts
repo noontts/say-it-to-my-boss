@@ -4,6 +4,7 @@ import { setupPractice, walkToPhone } from './practice-fixture'
 test.beforeEach(({ page }) => setupPractice(page))
 
 test('a random round only connects on Answer and retries the same caller', async ({ page }) => {
+  await page.clock.install()
   const requests: unknown[] = []
   await page.route('**/api/v1/scenarios', async (route) => {
     const response = await route.fetch()
@@ -38,12 +39,17 @@ test('a random round only connects on Answer and retries the same caller', async
   await page.getByRole('button', { name: 'วางสาย', exact: true }).click()
   await expect(page.getByRole('region', { name: 'คะแนนการฝึก' })).toContainText('0 / 100')
   const firstURL = page.url()
-  await page.getByRole('button', { name: 'เล่นต่อ' }).click()
+  await expect(page.getByRole('button', { name: 'เล่นต่อ' })).toHaveCount(0)
   await expect(office.getByText('เดินสำรวจออฟฟิศระหว่างรอสาย')).toBeVisible()
-  await expect(page).not.toHaveURL(/session=/)
+  await expect(page).toHaveURL(firstURL)
+  await page.keyboard.down('s')
+  await page.clock.runFor(1_100)
+  await page.keyboard.up('s')
+  await page.clock.fastForward(5_000)
+  await expect(office.getByText('เดินไปที่โต๊ะเพื่อรับสาย')).toBeVisible()
+  await expect(answer).toHaveCount(0)
   await (await walkToPhone(page)).click()
-  await expect(page).toHaveURL(/session=/)
-  expect(page.url()).not.toBe(firstURL)
+  await expect(page).not.toHaveURL(firstURL)
 })
 
 test('a finished round restores its score and the next call excludes the previous scenario', async ({ page }) => {
@@ -64,8 +70,7 @@ test('a finished round restores its score and the next call excludes the previou
   await expect(score).toContainText('0 / 100')
   await page.reload()
   await expect(score).toContainText('0 / 100')
-  await page.evaluate(() => { Math.random = () => 0 })
-  await page.getByRole('button', { name: 'เล่นต่อ' }).click()
+  await expect(page.getByRole('button', { name: 'เล่นต่อ' })).toHaveCount(0)
   await expect(office.getByText('เดินสำรวจออฟฟิศระหว่างรอสาย')).toBeVisible()
   await walkToPhone(page)
   await expect(office.getByRole('status')).not.toHaveText(firstCaller!)

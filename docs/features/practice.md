@@ -26,9 +26,9 @@ Sessions and results live in Go process memory. Start, committed turns, hang-up,
 
 **Hint** reveals the current scenario objectives during the call. The guidance is collapsed at first and does not affect objective progress or scoring.
 
-The practice score appears automatically after the call and any closing audio. It is the whole-number percentage of objectives achieved in the final snapshot. **เล่นต่อ** clears the previous session URL and opens the office for the next round. The draw excludes the preceding scenario when another is playable. With a single playable scenario, the player can start a fresh session of that scenario.
+The practice score appears automatically after the call and any closing audio. It is the whole-number percentage of objectives achieved in the final snapshot. The player returns to the desk automatically and can walk while the score is visible. The next round starts ringing after the usual wait. The completed session URL stays valid until the player answers the next call. The draw excludes the preceding scenario when another is playable. With a single playable scenario, the player can start a fresh session of that scenario.
 
-The coaching endpoint remains available to API clients. The server validates and saves the first successful evaluation. Subsequent requests reuse saved results. [Evaluation and scoring](../../backend/internal/game/results.go) · [Practice score screen](../../frontend/src/components/practice-score.tsx)
+The coaching endpoint remains available to API clients. The server validates and saves the first successful evaluation. Subsequent requests reuse saved results. [Evaluation and scoring](../../backend/internal/game/results.go) · [Practice score display](../../frontend/src/components/practice-score.tsx)
 
 ## HTTP contract
 

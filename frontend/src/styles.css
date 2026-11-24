@@ -97,26 +97,6 @@ button:focus-visible,
   font-weight: 750;
 }
 
-.game-score {
-  color: #f6d284;
-  font-size: clamp(4rem, 16vw, 9rem);
-  font-weight: 850;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.15;
-}
-
-.game-score span {
-  color: #dfebda;
-  font-size: 0.35em;
-  font-weight: 650;
-}
-
-.closing-reply {
-  display: grid;
-  gap: 0.65rem;
-  max-width: 32rem;
-}
-
 .practice {
   display: grid;
   min-height: 100vh;
@@ -598,4 +578,36 @@ button:focus-visible,
     user-select: none;
     -webkit-user-select: none;
   }
+}
+
+
+.office-score {
+  position: relative;
+  display: grid;
+  gap: 0.35rem;
+  width: fit-content;
+  max-width: calc(100% - 2rem);
+  margin: 0.75rem clamp(1rem, 4vw, 2.5rem);
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #a6be99;
+  border-radius: 0.5rem;
+  background: #10231de8;
+  pointer-events: none;
+}
+
+.office-score > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.65rem;
+}
+
+.office-score h2 {
+  font-weight: 750;
+}
+
+.office-score > div > p {
+  color: #f6d284;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }

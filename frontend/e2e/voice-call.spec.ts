@@ -99,7 +99,7 @@ for (const scenario of scenarios) {
     await page.reload()
     await expect(score).toContainText('100 / 100')
 
-    await page.getByRole('button', { name: 'เล่นต่อ' }).click()
+    await expect(page.getByRole('region', { name: 'ออฟฟิศ', exact: true })).toBeVisible()
     await (await walkToPhone(page)).click()
     await expect(page.getByText(/รอบที่ 1 \/ 3/)).toBeVisible()
     await expect(page).not.toHaveURL(initialURL)
@@ -527,7 +527,8 @@ test('the score appears when the closing audio stream stops delivering frames', 
   await expect(score).toHaveCount(0)
   await page.clock.fastForward(10_100)
   await expect(score).toContainText('100 / 100')
-  await expect(score.getByRole('button', { name: 'ลองเล่นเสียงอีกครั้ง' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'ออฟฟิศ', exact: true })).toBeVisible()
+  await expect(score.getByRole('button')).toHaveCount(0)
 })
 
 test('an unavailable speech worker leaves the closing reply visible and plays the end tone', async ({ page }) => {
@@ -545,12 +546,10 @@ test('an unavailable speech worker leaves the closing reply visible and plays th
     await expectRecognitionStarts(page, turn + 1)
     await speak(page, reply)
   }
-  await expect(page.getByText(closingLine)).toBeVisible()
-  await expect(page.getByText(/เล่นเสียงไม่ได้/)).toBeVisible()
+  const score = page.getByRole('region', { name: 'คะแนนการฝึก' })
+  await expect(score).toContainText(closingLine)
   await expectClip(page, endTone)
-  await page.unroute('**/api/v1/sessions/*/voice/6')
-  await page.getByRole('button', { name: 'ลองเล่นเสียงอีกครั้ง' }).tap()
-  await expectClip(page, voicePath(page, 6))
+  await expect(score.getByRole('button')).toHaveCount(0)
 })
 
 test('an early AI hang-up plays the closing line before the end tone', async ({ page }) => {

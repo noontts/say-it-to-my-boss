@@ -22,14 +22,15 @@ const answerWait = 8_000
 
 type BossLine = { text: string; cue: Parameters<typeof bossVoiceURL>[1] }
 
-export function Practice({ scenario, nextRound, officeRingAt, officeAudio }: {
+export function Practice({ scenario, onCallEnded, lastCall, officeRingAt, officeAudio }: {
   scenario: ScenarioSummary
-  nextRound: () => void
+  onCallEnded: (call: { session: Session; closingReply?: string }) => void
+  lastCall?: { session: Session; closingReply?: string }
   officeRingAt: number | null
-  officeAudio: AudioContext | null
+  officeAudio: () => AudioContext | null
 }) {
   const { id: scenarioId, character = 'คู่สนทนา' } = scenario
-  const restoredId = useRef(new URLSearchParams(window.location.search).get('session'))
+  const restoredId = useRef(officeRingAt === null ? new URLSearchParams(window.location.search).get('session') : null)
   const operation = useRef<AbortController | null>(null)
   const pending = useRef<TurnSubmission | null>(null)
   const transcriptList = useRef<HTMLOListElement>(null)
@@ -50,6 +51,17 @@ export function Practice({ scenario, nextRound, officeRingAt, officeAudio }: {
   const evaluatedTurn = useRef(-1)
   const endToneSession = useRef<string | null>(null)
   const voice = useNpcVoice()
+
+  const returnToOffice = useEffectEvent((finished: Session) => {
+    const closingReply = finished.endReason !== 'player' && (!voice.enabled || voice.failure)
+      ? finished.messages.at(-1)?.text
+      : undefined
+    onCallEnded({ session: finished, closingReply })
+  })
+
+  useEffect(() => {
+    if (session && session.status !== 'active' && !playingGoodbye) returnToOffice(session)
+  }, [session, playingGoodbye])
 
   const savingHangUp = session?.status === 'active' && manualHangUp
   const active = session?.status === 'active' && !manualHangUp
@@ -120,7 +132,10 @@ export function Practice({ scenario, nextRound, officeRingAt, officeAudio }: {
   function signalCallEnd(id: string) {
     if (endToneSession.current === id) return
     endToneSession.current = id
-    if (voice.enabled) voice.playEndTone()
+    if (voice.enabled) {
+      setPlayingGoodbye(true)
+      voice.playEndTone(() => setPlayingGoodbye(false))
+    }
   }
 
   function playGoodbye(next: Session) {
@@ -130,8 +145,8 @@ export function Practice({ scenario, nextRound, officeRingAt, officeAudio }: {
     }
     setPlayingGoodbye(true)
     playLatest(next, (finished) => {
-      setPlayingGoodbye(false)
       if (finished) signalCallEnd(next.id)
+      else setPlayingGoodbye(false)
     })
   }
 
@@ -334,7 +349,9 @@ export function Practice({ scenario, nextRound, officeRingAt, officeAudio }: {
         error,
         busy,
         answer: () => start(desktopOffice ? 'answer' : undefined),
-      }} />
+      }} resumeAtDesk={Boolean(lastCall)}>
+        {lastCall && <PracticeScore session={lastCall.session} closingReply={lastCall.closingReply} />}
+      </Office>
     }
 
     return (
@@ -369,18 +386,7 @@ export function Practice({ scenario, nextRound, officeRingAt, officeAudio }: {
     </div>
   )
 
-  if (session.status !== 'active' && !playingGoodbye) {
-    return (
-      <PracticeScore session={session} nextRound={nextRound}>
-        {session.endReason !== 'player' && (!voice.enabled || voiceRecovery) && (
-          <div className="closing-reply">
-            <p>{latestReply}</p>
-            {voiceRecovery}
-          </div>
-        )}
-      </PracticeScore>
-    )
-  }
+  if (session.status !== 'active' && !playingGoodbye) return null
 
   let callStatus = 'ไมค์ปิดอยู่'
   if (savingHangUp) callStatus = busy ? 'กำลังวางสาย…' : 'รอยืนยันวางสาย'

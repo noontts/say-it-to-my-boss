@@ -184,8 +184,8 @@ export function useNpcVoice() {
     playAudio(url, text, undefined, failure === 'unavailable')
   }
 
-  function playEndTone() {
-    playAudio('/sounds/call-ended.wav', null)
+  function playEndTone(done: () => void) {
+    playAudio('/sounds/call-ended.wav', null, done)
   }
 
   function toggle(url: string, text: string) {
