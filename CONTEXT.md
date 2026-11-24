@@ -1,6 +1,6 @@
 # Say It to My Boss
 
-Players rehearse difficult workplace conversations in Thai and receive coaching on what they said and which objectives they met.
+Players rehearse difficult workplace conversations in Thai and see how many objectives they met.
 
 ## Language
 
@@ -15,6 +15,10 @@ The workplace counterpart role-played in a scenario, such as the team lead, proj
 **Practice session**
 
 One player's attempt at a scenario, from the opening line through the outcome and any results requested afterward.
+
+**Incoming call**
+
+The notification that the scenario's NPC is calling before the conversation begins.
 
 **Call**
 
@@ -48,13 +52,21 @@ The end state of a practice session. It records whether the player succeeded or 
 
 The percentage of scenario objectives the player achieved.
 
+**Hint**
+
+Optional guidance during a call that suggests actions based on the scenario objectives.
+
+**Practice score**
+
+The objective completion shown to the player after a call, as a whole number out of 100.
+
 **Coaching**
 
 Feedback on the player's communication, including scores, strengths, suggestions, and a summary.
 
 **Results**
 
-The post-call view of the outcome, final trust, objective completion, and coaching.
+The stored evaluation of the outcome, final trust, objective completion, and coaching.
 
 **Replay**
 

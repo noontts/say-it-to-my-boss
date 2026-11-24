@@ -28,6 +28,7 @@ export function createPcmPlayback(context: AudioContext, rate: number, onStart: 
   let nextStart = 0
   let finished = false
   let cancelled = false
+  let activeReader: ReadableStreamDefaultReader<Uint8Array> | undefined
 
   function queue(frame: ArrayBuffer) {
     const pcm = new DataView(frame)
@@ -53,8 +54,9 @@ export function createPcmPlayback(context: AudioContext, rate: number, onStart: 
     nextStart = start + buffer.duration / rate
   }
 
-  async function read(body: ReadableStream<Uint8Array>) {
+  async function read(body: ReadableStream<Uint8Array>, onProgress: () => void) {
     const reader = body.getReader()
+    activeReader = reader
     const chunks: ArrayBuffer[] = []
     let pending = new Uint8Array()
     let size = 0
@@ -63,6 +65,7 @@ export function createPcmPlayback(context: AudioContext, rate: number, onStart: 
       while (!cancelled) {
         const { value, done } = await reader.read()
         if (done || cancelled) break
+        onProgress()
         wireBytes += value.byteLength
         if (wireBytes > maxBytes) throw new Error('Voice stream exceeded the size limit')
         const bytes = new Uint8Array(pending.length + value.length)
@@ -90,7 +93,8 @@ export function createPcmPlayback(context: AudioContext, rate: number, onStart: 
       }
       throw new Error('Voice stream stopped before the final frame')
     } finally {
-      void reader.cancel().catch(() => {})
+      activeReader = undefined
+      if (!cancelled) void reader.cancel().catch(() => {})
       reader.releaseLock()
     }
   }
@@ -103,6 +107,7 @@ export function createPcmPlayback(context: AudioContext, rate: number, onStart: 
     },
     cancel() {
       cancelled = true
+      void activeReader?.cancel().catch(() => {})
       for (const source of sources) {
         source.onended = null
         source.stop()

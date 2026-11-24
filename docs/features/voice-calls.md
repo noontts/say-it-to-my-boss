@@ -4,7 +4,7 @@ The React [practice page](../../frontend/src/pages/practice.tsx) coordinates the
 
 ## Microphone and reply submission
 
-- Starting a call requests the microphone and plays the opening line. Restoring an active call shows committed dialogue with the mic off until the player selects **เปิดไมค์**.
+- Answering an incoming call requests the microphone and plays the opening line. Restoring an active call shows committed dialogue with the mic off until the player selects **เปิดไมค์**.
 - The [speech recognition hook](../../frontend/src/hooks/use-speech-to-text.ts) uses the browser's standard or prefixed recognition API with `th-TH`, continuous listening, and interim results. Where available it requests a microphone track with echo cancellation and noise suppression. The browser handles recognition and Gin receives the finalized text.
 - Interim text appears as a draft in the transcript. Final fragments are combined and submitted after an 850 ms pause, or when recognition ends with a buffered reply. Recognition restarts after 300 ms on end or no speech while the mic remains enabled. Muting or ending the call stops recognition and releases the capture track.
 - The UI ignores recognized fragments while a request is pending, an unsent draft is visible, or the boss has taken over. It also filters fragments that match current or recent NPC audio. After a failed submission the player can retry the same text or discard it and speak again. An overlong draft can be discarded and re-recorded. Unsupported recognition and permission errors show Thai recovery messages. If microphone access or recognition is unavailable, the player can type a reply. A typed draft pauses the silence timer.
@@ -17,17 +17,17 @@ The React [practice page](../../frontend/src/pages/practice.tsx) coordinates the
 
 ## Playback and call ending
 
-- The [voice hook](../../frontend/src/hooks/use-npc-voice.ts) primes Web Audio and the reusable WAV player on the Start Call tap. A browser with an active audio context requests PCM and schedules each complete phrase as it arrives. WAV is available when streaming is unavailable and as a retry after a dropped stream. If autoplay is blocked, the player can tap to play.
+- The [voice hook](../../frontend/src/hooks/use-npc-voice.ts) primes Web Audio and the reusable WAV player on the Answer tap. A browser with an active audio context requests PCM and schedules each complete phrase as it arrives. WAV is available when streaming is unavailable and as a retry after a dropped stream. If autoplay is blocked, the player can tap to play.
 - The player can toggle playback and choose a speed. New audio cancels prior playback or loading. The browser keeps the latest complete line as a WAV in memory for replay. If synthesis or playback fails, the transcript stays visible and the player can retry the audio.
-- Manual hang-up stops capture and playback and signals the end immediately. When the NPC hangs up, the microphone stops and the closing line plays before the end tone. Preset endings and silence hang-ups also play their final line before the tone. The tone is gated by the speaker toggle and plays at most once per session in the page. Results use a separate request after the call ends.
-- The transcript is visible during the call and scrolls as dialogue or draft text changes. The call also shows the portrait and speaking state, current turn, objectives, and trust. The turn counter shows a total for local calls. [Voice controls and call rendering](../../frontend/src/pages/practice.tsx)
+- Manual hang-up stops capture and playback immediately. The end tone follows the saved call ending. When the NPC hangs up, the microphone stops and the closing line plays before the end tone. Preset endings and silence hang-ups also play their final line before the tone. The tone is gated by the speaker toggle and plays at most once per session in the page. The practice score appears after the closing line settles.
+- The transcript is visible during the call and scrolls as dialogue or draft text changes. The call also shows the portrait and speaking state, and current turn. Hint reveals the objectives on demand. The turn counter shows a total for local calls. [Voice controls and call rendering](../../frontend/src/pages/practice.tsx)
 
 
 ## Office call presentation
 
-- On desktop, answering or calling back from the office stops the ring and releases mouse capture. The camera moves into a stationary desk view or jumps directly there with Reduced Motion.
+- On desktop, answering a boss call opens the stationary desk view when the office renderer is available. Saved office callback sessions restore their desk view and original dialogue.
 - The pixel-art boss portrait uses the saved Mood and follows actual NPC audio playback. The transcript, microphone controls, and playback recovery use the usual call interface.
-- The report and team notes are available before and during the call. Opening the in-call reference panel leaves speech recognition, NPC playback, and the usual silence rules running.
+- The report and team notes are available during the call. Opening the in-call reference panel leaves speech recognition, NPC playback, and the usual silence rules running.
 
 ## Verification
 

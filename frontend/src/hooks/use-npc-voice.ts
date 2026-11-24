@@ -77,7 +77,7 @@ export function useNpcVoice() {
 
     const audio = getPlayer()
     const controller = new AbortController()
-    const timeout = window.setTimeout(() => complete('unavailable'), 10_000)
+    let timeout = window.setTimeout(() => complete('unavailable'), 10_000)
     const context = audioContext.current
     let pcm: ReturnType<typeof createPcmPlayback> | undefined
     const playback = {
@@ -127,6 +127,11 @@ export function useNpcVoice() {
       if (current.current === playback) setPreparing(false)
     }
 
+    function streamProgress() {
+      window.clearTimeout(timeout)
+      timeout = window.setTimeout(() => complete('unavailable'), 10_000)
+    }
+
     function cache(blob: Blob) {
       const source = URL.createObjectURL(blob)
       cached.current = { url, source }
@@ -151,9 +156,10 @@ export function useNpcVoice() {
           }
           if (response.ok && context?.state === 'running' && response.body) {
             context.addEventListener('statechange', checkContext)
-            pcm = createPcmPlayback(context, rate, started, complete)
-            const blob = await pcm.read(response.body)
+            pcm = createPcmPlayback(context, rate, () => setPreparing(false), complete)
+            const blob = await pcm.read(response.body, streamProgress)
             if (current.current !== playback) return
+            window.clearTimeout(timeout)
             cache(blob)
             pcm.finish()
             return

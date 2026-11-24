@@ -1,84 +1,63 @@
 import { useEffect, useRef, useState } from 'react'
+import { playIncomingRing } from './components/incoming-ring'
 import { useScenarioRequest } from './hooks/use-scenario-request'
 import { updatePracticeURL } from './services/practice'
 import { Practice } from './pages/practice'
 import type { ScenarioCatalog } from './types/scenario'
 
 export function App() {
-  const [scenarioId, setScenarioId] = useState(() => {
+  const [round, setRound] = useState(() => {
     const query = new URLSearchParams(window.location.search)
-    return query.has('session') ? query.get('scenario') : null
+    return { scenarioId: query.has('session') ? query.get('scenario') : null, number: 0 }
   })
-  const heading = useRef<HTMLHeadingElement>(null)
+  const stopRing = useRef<(() => void) | undefined>(undefined)
   const catalog = useScenarioRequest<ScenarioCatalog>('/api/v1/scenarios')
-  const scenario = catalog.state.status === 'ready'
-    ? catalog.state.data.scenarios.find((item) => item.id === scenarioId)
-    : undefined
+  const playable = catalog.state.status === 'ready'
+    ? catalog.state.data.scenarios.filter((item) => item.playable)
+    : []
+  const scenario = playable.find((item) => item.id === round.scenarioId)
 
-  useEffect(() => {
-    heading.current?.focus()
-  }, [scenario?.id])
+  useEffect(() => () => stopRing.current?.(), [])
 
-  function showPicker() {
+  function stopIncomingRing() {
+    stopRing.current?.()
+    stopRing.current = undefined
+  }
+
+  function drawScenario() {
+    const different = playable.filter((item) => item.id !== round.scenarioId)
+    const pool = different.length ? different : playable
+    if (!pool.length) return
+    const next = pool[Math.floor(Math.random() * pool.length)]
+
     updatePracticeURL()
-    setScenarioId(null)
+    stopIncomingRing()
+    stopRing.current = playIncomingRing()
+    setRound({ scenarioId: next.id, number: round.number + 1 })
   }
 
   return (
-    <main className="shell">
-      <header className="masthead">
-        <h1>ขอคุยกับหัวหน้า</h1>
-      </header>
-
-      {!scenario ? (
-        <section aria-labelledby="page-title">
-          <h2 id="page-title" tabIndex={-1} ref={heading}>เลือกสถานการณ์</h2>
+    <main className="game">
+      {scenario ? (
+        <Practice key={round.number} scenario={scenario} nextRound={drawScenario} stopIncomingRing={stopIncomingRing} />
+      ) : (
+        <section className="game-stage game-home" aria-labelledby="game-title">
+          <span className="game-phone" aria-hidden="true">☎</span>
+          <h1 id="game-title">ขอคุยกับหัวหน้า</h1>
           {catalog.state.status === 'loading' && <p role="status">กำลังโหลดสถานการณ์…</p>}
           {catalog.state.status === 'error' && (
-            <div className="panel">
+            <>
               <p role="alert">โหลดสถานการณ์ไม่สำเร็จ</p>
-              <button className="button primary" onClick={catalog.retry}>ลองใหม่</button>
-            </div>
+              <button className="game-button" onClick={catalog.retry}>ลองใหม่</button>
+            </>
           )}
           {catalog.state.status === 'ready' && (
-            catalog.state.data.scenarios.length === 0 ? (
-              <p>ยังไม่มีสถานการณ์ให้เลือก</p>
+            playable.length ? (
+              <button className="game-button" onClick={drawScenario}>เริ่มเกม</button>
             ) : (
-              <ul className="scenario-list">
-                {catalog.state.data.scenarios.map((item) => (
-                  <li key={item.id}>
-                    <button
-                      className="scenario-card"
-                      onClick={() => {
-                        updatePracticeURL()
-                        setScenarioId(item.id)
-                      }}
-                    >
-                      <span className="profession">{item.profession}</span>
-                      <span className="scenario-title">{item.title}</span>
-                      <span className={item.playable ? 'availability available' : 'availability'}>
-                        {item.playable ? 'พร้อมฝึก' : 'เร็ว ๆ นี้'}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <p>ยังไม่มีสถานการณ์ให้เล่น</p>
             )
           )}
-        </section>
-      ) : (
-        <section aria-labelledby="page-title">
-          <button className="button back" onClick={showPicker}>← เลือกสถานการณ์</button>
-          <p className="profession">{scenario.profession}</p>
-          <h2 id="page-title" tabIndex={-1} ref={heading}>{scenario.title}</h2>
-          <div className="panel">
-            <p>{scenario.description}</p>
-            {scenario.playable ? (
-              <Practice key={scenario.id} scenario={scenario} exit={showPicker} />
-            ) : (
-              <p className="availability">เร็ว ๆ นี้</p>
-            )}
-          </div>
         </section>
       )}
     </main>
