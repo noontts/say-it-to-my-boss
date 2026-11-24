@@ -18,13 +18,21 @@ func RegisterPractice(api *gin.RouterGroup, practice *game.Practice) {
 	})
 	api.POST("/sessions", func(ctx *gin.Context) {
 		var input struct {
-			ScenarioID string `json:"scenarioId"`
+			ScenarioID  string          `json:"scenarioId"`
+			OfficeEntry json.RawMessage `json:"officeEntry"`
 		}
 		if !readJSON(ctx, &input) || input.ScenarioID == "" {
 			ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid scenario"})
 			return
 		}
-		state, err := practice.Start(input.ScenarioID)
+		officeEntry := ""
+		if input.OfficeEntry != nil {
+			if json.Unmarshal(input.OfficeEntry, &officeEntry) != nil || officeEntry == "" {
+				ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid office entry"})
+				return
+			}
+		}
+		state, err := practice.StartWithOfficeEntry(input.ScenarioID, officeEntry)
 		writeSession(ctx, http.StatusCreated, state, err)
 	})
 	api.GET("/sessions/:id", func(ctx *gin.Context) {
@@ -75,6 +83,8 @@ func writeSession(ctx *gin.Context, status int, state game.Session, err error) {
 	switch {
 	case errors.Is(err, game.ErrNotFound):
 		status = http.StatusNotFound
+	case errors.Is(err, game.ErrInvalidOfficeEntry):
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid office entry"})
 	case errors.Is(err, game.ErrInvalidTurn), errors.Is(err, game.ErrNotPlayable):
 		status = http.StatusBadRequest
 	case errors.Is(err, game.ErrConflict):

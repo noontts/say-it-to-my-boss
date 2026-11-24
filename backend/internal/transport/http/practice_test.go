@@ -137,3 +137,56 @@ func postSession(t *testing.T, router http.Handler, path string, body any, statu
 	decode(t, response, &session)
 	return session
 }
+
+func TestOfficeEntrySession(t *testing.T) {
+	catalog, err := game.LoadCatalog("../../../../scenarios")
+	if err != nil {
+		t.Fatal(err)
+	}
+	router := gin.New()
+	transport.RegisterPractice(router.Group("/api/v1"), game.NewPractice(catalog, nil))
+	session := postSession(t, router, "/api/v1/sessions", map[string]string{"scenarioId": "angry-boss", "officeEntry": "answer"}, http.StatusCreated)
+	if session.OfficeEntry != "answer" || session.Trust != 50 || session.Mood != "concerned" || session.Turn != 0 || len(session.Achieved) != 0 || len(session.Messages) != 1 {
+		t.Fatalf("unexpected initial session: %+v", session)
+	}
+	var restored game.Session
+	decode(t, request(t, router, "/api/v1/sessions/"+session.ID, http.StatusOK), &restored)
+	if restored.OfficeEntry != "answer" {
+		t.Fatalf("entry not persisted: %+v", restored)
+	}
+	for _, input := range []map[string]string{{"scenarioId": "angry-boss", "officeEntry": "invalid"}, {"scenarioId": "demanding-client", "officeEntry": "answer"}, {"scenarioId": "angry-boss", "officeEntry": ""}} {
+		postSession(t, router, "/api/v1/sessions", input, http.StatusBadRequest)
+	}
+}
+
+func TestOfficeCallbackCanRecoverTrust(t *testing.T) {
+	catalog, err := game.LoadCatalog("../../../../scenarios")
+	if err != nil {
+		t.Fatal(err)
+	}
+	router := gin.New()
+	transport.RegisterPractice(router.Group("/api/v1"), game.NewPractice(catalog, nil))
+	session := postSession(t, router, "/api/v1/sessions", map[string]string{"scenarioId": "angry-boss", "officeEntry": "callback"}, http.StatusCreated)
+	const opening = "เมื่อกี้ผมโทรไปแล้วคุณไม่ได้รับสาย ตอนนี้รายงานไปถึงไหนแล้วครับ?"
+	if session.OfficeEntry != "callback" || session.Trust != 35 || session.Mood != "frustrated" || session.Turn != 0 || len(session.Achieved) != 0 || len(session.Messages) != 1 || session.Messages[0].Text != opening {
+		t.Fatalf("unexpected initial callback: %+v", session)
+	}
+	path := "/api/v1/sessions/" + session.ID
+	var restored game.Session
+	decode(t, request(t, router, path, http.StatusOK), &restored)
+	if restored.OfficeEntry != session.OfficeEntry || restored.Trust != session.Trust || restored.Messages[0].Text != opening {
+		t.Fatalf("unexpected restored callback: %+v", restored)
+	}
+	for turn, reply := range []string{
+		"ขอโทษที่ส่งช้าค่ะ เพราะตัวเลขยังตรวจไม่เสร็จ ตอนนี้ทำสรุปแล้วค่ะ",
+		"ขอส่งบทสรุปก่อนห้าโมงเย็นค่ะ",
+		"จะส่งฉบับเต็มพรุ่งนี้แปดโมงค่ะ ถ้าติดขัดจะแจ้งภายในหนึ่งทุ่ม",
+	} {
+		session = postSession(t, router, path+"/messages", map[string]any{
+			"requestId": fmt.Sprintf("callback-%d", turn), "turn": turn, "text": reply,
+		}, http.StatusOK)
+	}
+	if session.Status != "succeeded" || session.Trust < 50 || len(session.Achieved) != 3 {
+		t.Fatalf("callback did not recover trust: %+v", session)
+	}
+}

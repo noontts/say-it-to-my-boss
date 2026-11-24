@@ -16,17 +16,20 @@ import (
 const (
 	MaxMessageLength = 1000
 	initialTrust     = 50
+	callbackTrust    = 35
+	callbackOpening  = "เมื่อกี้ผมโทรไปแล้วคุณไม่ได้รับสาย ตอนนี้รายงานไปถึงไหนแล้วครับ?"
 	sessionLifetime  = 2 * time.Hour
 	maxSessions      = 1000
 )
 
 var (
-	ErrNotFound    = errors.New("session or scenario not found")
-	ErrNotPlayable = errors.New("scenario is not playable")
-	ErrInvalidTurn = errors.New("invalid message or turn")
-	ErrConflict    = errors.New("session is busy, finished, or on a different turn")
-	ErrAtCapacity  = errors.New("session capacity reached")
-	ErrReplyFailed = errors.New("NPC reply unavailable")
+	ErrNotFound           = errors.New("session or scenario not found")
+	ErrNotPlayable        = errors.New("scenario is not playable")
+	ErrInvalidTurn        = errors.New("invalid message or turn")
+	ErrInvalidOfficeEntry = errors.New("invalid office entry")
+	ErrConflict           = errors.New("session is busy, finished, or on a different turn")
+	ErrAtCapacity         = errors.New("session capacity reached")
+	ErrReplyFailed        = errors.New("NPC reply unavailable")
 )
 
 type Objective struct {
@@ -85,19 +88,20 @@ type Message struct {
 }
 
 type Session struct {
-	ID         string      `json:"id"`
-	ScenarioID string      `json:"scenarioId"`
-	Messages   []Message   `json:"messages"`
-	Objectives []Objective `json:"objectives"`
-	Achieved   []string    `json:"achieved"`
-	Turn       int         `json:"turn"`
-	TurnLimit  int         `json:"turnLimit,omitempty"`
-	Trust      int         `json:"trust"`
-	Mood       string      `json:"mood"`
-	Status     string      `json:"status"`
-	EndReason  string      `json:"endReason,omitempty"`
-	Mode       string      `json:"mode"`
-	Results    *Results    `json:"results,omitempty"`
+	ID          string      `json:"id"`
+	ScenarioID  string      `json:"scenarioId"`
+	OfficeEntry string      `json:"officeEntry,omitempty"`
+	Messages    []Message   `json:"messages"`
+	Objectives  []Objective `json:"objectives"`
+	Achieved    []string    `json:"achieved"`
+	Turn        int         `json:"turn"`
+	TurnLimit   int         `json:"turnLimit,omitempty"`
+	Trust       int         `json:"trust"`
+	Mood        string      `json:"mood"`
+	Status      string      `json:"status"`
+	EndReason   string      `json:"endReason,omitempty"`
+	Mode        string      `json:"mode"`
+	Results     *Results    `json:"results,omitempty"`
 }
 
 type NPCReply struct {
@@ -143,6 +147,13 @@ func NewPractice(catalog *Catalog, ai PracticeAI) *Practice {
 }
 
 func (p *Practice) Start(scenarioID string) (Session, error) {
+	return p.StartWithOfficeEntry(scenarioID, "")
+}
+
+func (p *Practice) StartWithOfficeEntry(scenarioID, officeEntry string) (Session, error) {
+	if officeEntry != "" && (scenarioID != "angry-boss" || (officeEntry != "answer" && officeEntry != "callback")) {
+		return Session{}, ErrInvalidOfficeEntry
+	}
 	scenario, ok := p.catalog.Get(scenarioID)
 	if !ok {
 		return Session{}, ErrNotFound
@@ -161,10 +172,14 @@ func (p *Practice) Start(scenarioID string) (Session, error) {
 	for _, objective := range spec.Objectives {
 		objectives = append(objectives, objective.Objective)
 	}
+	trust, opening := initialTrust, spec.Opening
+	if officeEntry == "callback" {
+		trust, opening = callbackTrust, callbackOpening
+	}
 	state := Session{
-		ID: rand.Text(), ScenarioID: scenarioID, TurnLimit: turnLimit,
-		Messages: []Message{{Role: "npc", Text: spec.Opening}}, Objectives: objectives,
-		Achieved: []string{}, Trust: initialTrust, Mood: mood(initialTrust), Status: "active", Mode: mode,
+		ID: rand.Text(), ScenarioID: scenarioID, OfficeEntry: officeEntry, TurnLimit: turnLimit,
+		Messages: []Message{{Role: "npc", Text: opening}}, Objectives: objectives,
+		Achieved: []string{}, Trust: trust, Mood: mood(trust), Status: "active", Mode: mode,
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
