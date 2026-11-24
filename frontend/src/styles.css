@@ -498,6 +498,11 @@ h3 {
 }
 
 /* First-person office HUD and desk call */
+.panel > div:has(> .office) {
+  width: 100%;
+  min-width: 0;
+}
+
 .office {
   position: relative;
   margin-block: 1rem;
