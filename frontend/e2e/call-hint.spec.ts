@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { setupPractice } from './practice-fixture'
+import { setupPractice, walkToPhone } from './practice-fixture'
 
 const scenario = {
   id: 'difficult-customer',
@@ -15,7 +15,7 @@ test('the call hint opens and closes without interrupting a voice reply', async 
   await page.goto('/')
 
   await page.getByRole('button', { name: 'เริ่มเกม', exact: true }).click()
-  await page.getByRole('button', { name: 'รับสาย', exact: true }).click()
+  await (await walkToPhone(page)).click()
 
   const hint = page.locator('.call-hint')
   const hintButton = hint.getByRole('button', { name: 'Hint', exact: true })

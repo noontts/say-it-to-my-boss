@@ -132,3 +132,14 @@ export async function setupPractice(page: Page) {
     }
   })
 }
+
+export async function walkToPhone(page: Page) {
+  const answer = page.getByRole('button', { name: 'รับสาย', exact: true })
+  await page.keyboard.down('w')
+  try {
+    await answer.waitFor({ state: 'visible', timeout: 10_000 })
+  } finally {
+    await page.keyboard.up('w')
+  }
+  return answer
+}

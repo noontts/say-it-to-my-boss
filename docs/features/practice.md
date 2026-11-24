@@ -14,7 +14,7 @@ The [catalog loader](../../backend/internal/game/catalog.go) reads JSON at start
 
 ## Session lifecycle
 
-1. **เริ่มเกม** draws a playable scenario and immediately displays its incoming caller. **รับสาย** creates the practice session and begins the call. On desktop the boss uses the existing office answer branch and opens the stationary desk view when rendering is supported. Mobile and other scenarios use the direct call entry. The existing API still accepts and restores office callback sessions.
+1. **เริ่มเกม** opens the first-person office and draws a playable scenario. The player can walk and look around as the desk phone waits five seconds, then rings with the selected caller. Near the desk, **รับสาย** or **E** creates the practice session and begins the call. Calls use the stationary desk view when rendering is supported. The existing API still accepts and restores office callback sessions.
 2. Starting a session creates a random ID, saves the NPC opening line, and initializes turn `0` and an empty set of achieved objectives. An on-time answer or direct call starts with the usual opening, Trust 50, and concerned Mood. A callback starts with a line about the missed call, Trust 35, and frustrated Mood.
 3. A submission carries `requestId`, zero-based `turn`, and `text`. Go trims the reply, validates it, and accepts one in-flight turn per session. It commits the player reply, NPC reply, and progress together after reply validation. A matching retry of an already committed request ID returns the latest snapshot, and reusing the ID with different input returns a conflict. A failed generation leaves the turn available for retry.
 4. Go applies the reply's trust delta, clamps trust to 0–100, and accumulates known objective IDs. Mood is `frustrated` below 40, `reassured` at 70 or above, and `concerned` in between.
@@ -26,7 +26,7 @@ Sessions and results live in Go process memory. Start, committed turns, hang-up,
 
 **Hint** reveals the current scenario objectives during the call. The guidance is collapsed at first and does not affect objective progress or scoring.
 
-The practice score appears automatically after the call and any closing audio. It is the whole-number percentage of objectives achieved in the final snapshot. **เล่นต่อ** clears the previous session URL and draws the next incoming call. The draw excludes the preceding scenario when another is playable. With a single playable scenario, the player can start a fresh session of that scenario.
+The practice score appears automatically after the call and any closing audio. It is the whole-number percentage of objectives achieved in the final snapshot. **เล่นต่อ** clears the previous session URL and opens the office for the next round. The draw excludes the preceding scenario when another is playable. With a single playable scenario, the player can start a fresh session of that scenario.
 
 The coaching endpoint remains available to API clients. The server validates and saves the first successful evaluation. Subsequent requests reuse saved results. [Evaluation and scoring](../../backend/internal/game/results.go) · [Practice score screen](../../frontend/src/components/practice-score.tsx)
 

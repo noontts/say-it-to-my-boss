@@ -485,3 +485,117 @@ button:focus-visible,
   padding: 0.2rem 0.75rem 0.65rem;
   font-size: 0.85rem;
 }
+
+.office-exploring {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  isolation: isolate;
+}
+
+.office-exploring > .office-view {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  object-fit: cover;
+  touch-action: none;
+}
+
+.office-hud {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  padding: 0.75rem clamp(1rem, 4vw, 2.5rem);
+  background: linear-gradient(#10231df5, #10231d99);
+}
+
+.office-hud h1 {
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.office-hud p {
+  flex: 1 1 auto;
+  color: #e4ebd8;
+}
+
+.office-control {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding-inline: 0.65rem;
+  border: 1px solid #a6be99;
+  border-radius: 0.45rem;
+  background: #203b30;
+  font-weight: 700;
+}
+
+.office-crosshair {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: 5px;
+  height: 5px;
+  transform: translate(-50%, -50%);
+  background: #fff4db;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.office-phone {
+  position: absolute;
+  bottom: clamp(1rem, 4vw, 2rem);
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  width: min(28rem, calc(100% - 2rem));
+  padding: 0.7rem 1rem;
+  transform: translateX(-50%);
+  border: 1px solid #a6be99;
+  border-radius: 0.75rem;
+  background: #10231de8;
+  text-align: center;
+}
+
+.office-phone [role="status"] {
+  font-weight: 750;
+}
+
+.office-touch,
+.office-touch-label {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .office-keyboard {
+    display: none;
+  }
+
+  .office-touch-label {
+    display: block;
+  }
+
+  .office-phone {
+    bottom: calc(4.8rem + env(safe-area-inset-bottom));
+  }
+
+  .office-touch {
+    position: absolute;
+    bottom: calc(1rem + env(safe-area-inset-bottom));
+    left: 50%;
+    display: flex;
+    gap: 0.5rem;
+    transform: translateX(-50%);
+    touch-action: none;
+  }
+
+  .office-touch .office-control {
+    font-size: 1.3rem;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}

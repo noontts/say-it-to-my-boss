@@ -1,4 +1,4 @@
-type OfficeCamera = {
+export type OfficeCamera = {
   x: number
   y: number
   angle: number
@@ -38,6 +38,7 @@ const fragmentSource = `
   varying vec3 color;
   varying float surface;
   varying float distanceFromEye;
+  uniform float ringFlash;
 
   void main() {
     vec3 result = color;
@@ -52,17 +53,34 @@ const fragmentSource = `
       result *= 0.94 + 0.10 * variation - 0.09 * line;
     } else if (surface < 3.5) {
       result *= 0.87 + 0.12 * fract(pixel.x * 0.3819 + pixel.z * 0.6181) + 0.07 * variation;
+    } else if (surface > 4.5) {
+      result = mix(result, vec3(1.0, 0.83, 0.29), ringFlash);
     }
     float fog = clamp((distanceFromEye - 1.4) * 0.073, 0.0, 0.48);
     gl_FragColor = vec4(mix(result, vec3(0.10, 0.16, 0.15), fog), 1.0);
   }
 `
 
-type Point = [number, number, number]
+export type Point = [number, number, number]
 
 const eyeHeight = 1.55
 const deskTop = { min: [5.45, 4.7, 0.78] as Point, max: [6.4, 6.3, 0.88] as Point }
+const playerRadius = 0.2
+export const phonePosition: Point = [deskTop.min[0] + 0.15, 5.50, deskTop.max[2] + 0.10]
+export const officeSpawn: OfficeCamera = { x: 2, y: 5.5, angle: 0, pitch: -0.03 }
 export const deskCamera: OfficeCamera = { x: 5.02, y: 5.48, angle: 0.06, pitch: -0.34, height: 1.28 }
+
+export function officePhoneInReach({ x, y }: OfficeCamera) {
+  return x <= deskTop.min[0] && Math.hypot(phonePosition[0] - x, phonePosition[1] - y) <= 1.6
+}
+
+export function officeWalkable(x: number, y: number) {
+  const insideRoom = x > 1 + playerRadius && x < 7 - playerRadius &&
+    y > 1 + playerRadius && y < 7 - playerRadius
+  const hitsDesk = x > deskTop.min[0] - playerRadius && x < deskTop.max[0] + playerRadius &&
+    y > deskTop.min[1] - playerRadius && y < deskTop.max[1] + playerRadius
+  return insideRoom && !hitsDesk
+}
 
 function officeGeometry() {
   const vertices: number[] = []
@@ -218,14 +236,16 @@ export function createOfficeScene(canvas: HTMLCanvasElement) {
   const eye = gl.getUniformLocation(program, 'eye')
   const direction = gl.getUniformLocation(program, 'direction')
   const aspect = gl.getUniformLocation(program, 'aspect')
+  const ringFlash = gl.getUniformLocation(program, 'ringFlash')
 
   return {
-    draw({ x, y, angle, pitch = -0.08, height = eyeHeight }: OfficeCamera) {
+    draw({ x, y, angle, pitch = -0.08, height = eyeHeight }: OfficeCamera, flash: boolean) {
       gl.viewport(0, 0, canvas.width, canvas.height)
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
       gl.uniform3f(eye, x, y, height)
       gl.uniform4f(direction, Math.cos(angle), Math.sin(angle), Math.cos(pitch), Math.sin(pitch))
       gl.uniform1f(aspect, canvas.width / canvas.height)
+      gl.uniform1f(ringFlash, Number(flash))
       gl.drawArrays(gl.TRIANGLES, 0, geometry.length / 7)
     },
     dispose() {

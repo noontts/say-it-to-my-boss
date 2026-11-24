@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { setupPractice, testSpeech } from './practice-fixture'
+import { setupPractice, testSpeech, walkToPhone } from './practice-fixture'
 
 declare global {
   interface Window {
@@ -50,7 +50,7 @@ async function startCall(page: Page, scenarioId: string, microphoneStarts = true
   await page.goto('/')
   if (!microphoneStarts) await page.evaluate(() => { window.practiceTest.denyMicrophone = true })
   await page.getByRole('button', { name: 'เริ่มเกม', exact: true }).click()
-  await page.getByRole('button', { name: 'รับสาย', exact: true }).click()
+  await (await walkToPhone(page)).click()
   await expect(page.getByRole('button', { name: microphoneStarts ? 'ปิดไมค์' : 'เปิดไมค์', exact: true })).toBeEnabled()
 }
 
@@ -81,15 +81,14 @@ for (const scenario of scenarios) {
     await expect(page.getByRole('textbox')).toHaveCount(0)
     await expectClip(page, voicePath(page, 0))
 
+    const transcript = page.getByRole('list', { name: 'บทสนทนา' })
     for (const [turn, reply] of scenario.replies.entries()) {
       await expectRecognitionStarts(page, turn + 1)
       await speak(page, reply)
       await expectClip(page, voicePath(page, (turn + 1) * 2))
+      if (turn < scenario.replies.length - 1) await expect(transcript).toContainText(reply)
     }
 
-    const transcript = page.locator('.voice-call').getByRole('list', { name: 'บทสนทนา' })
-    await expect(transcript.getByRole('listitem')).toHaveCount(7)
-    await expect(transcript).toContainText(scenario.replies[2])
     await expect.poll(() => page.evaluate(() => [
       window.practiceTest.microphoneRequests, window.practiceTest.releasedTracks,
     ])).toEqual([1, 1])
@@ -101,7 +100,7 @@ for (const scenario of scenarios) {
     await expect(score).toContainText('100 / 100')
 
     await page.getByRole('button', { name: 'เล่นต่อ' }).click()
-    await page.getByRole('button', { name: 'รับสาย', exact: true }).click()
+    await (await walkToPhone(page)).click()
     await expect(page.getByText(/รอบที่ 1 \/ 3/)).toBeVisible()
     await expect(page).not.toHaveURL(initialURL)
   })

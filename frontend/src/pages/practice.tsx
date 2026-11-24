@@ -22,10 +22,11 @@ const answerWait = 8_000
 
 type BossLine = { text: string; cue: Parameters<typeof bossVoiceURL>[1] }
 
-export function Practice({ scenario, nextRound, stopIncomingRing }: {
+export function Practice({ scenario, nextRound, officeRingAt, officeAudio }: {
   scenario: ScenarioSummary
   nextRound: () => void
-  stopIncomingRing: () => void
+  officeRingAt: number | null
+  officeAudio: AudioContext | null
 }) {
   const { id: scenarioId, character = 'คู่สนทนา' } = scenario
   const restoredId = useRef(new URLSearchParams(window.location.search).get('session'))
@@ -325,16 +326,25 @@ export function Practice({ scenario, nextRound, stopIncomingRing }: {
       )
     }
 
+    if (officeRingAt !== null) {
+      return <Office incoming={{
+        ringAt: officeRingAt,
+        character,
+        audio: officeAudio,
+        error,
+        busy,
+        answer: () => start(desktopOffice ? 'answer' : undefined),
+      }} />
+    }
+
     return (
       <section className="game-stage" aria-labelledby="incoming-heading">
         <h1 id="incoming-heading" tabIndex={-1} ref={incomingHeading}>สายเรียกเข้า</h1>
         {scenario.character && <img className="incoming-portrait" src={`/avatars/${scenarioId}.jpg`} alt="" />}
         <p className="incoming-character">{character}</p>
         {error && <p role="alert">{error}</p>}
-        <button className="game-button" ref={answerButton} disabled={busy} onClick={() => {
-          stopIncomingRing()
-          start(desktopOffice ? 'answer' : undefined)
-        }}>รับสาย</button>
+        <button className="game-button" ref={answerButton} disabled={busy}
+          onClick={() => start(desktopOffice ? 'answer' : undefined)}>รับสาย</button>
         {busy && <p role="status">กำลังต่อสาย…</p>}
       </section>
     )
@@ -382,9 +392,10 @@ export function Practice({ scenario, nextRound, stopIncomingRing }: {
   else if (voice.speaking) callStatus = listening ? 'กำลังพูด · ไมค์เปิดอยู่' : 'กำลังพูด…'
   else if (listening) callStatus = 'กำลังฟัง…'
 
+  const atDesk = officeRingAt !== null || officeCall
   return (
-    <div className={officeCall ? 'practice office-call' : 'practice'}>
-      {desktopOffice && officeCall && <Office />}
+    <div className={atDesk ? 'practice office-call' : 'practice'}>
+      {atDesk && <Office />}
       <section className="voice-call" aria-labelledby="call-character">
         {session.turnLimit ? (
           <p className="call-round">รอบที่ {Math.min(session.turn + 1, session.turnLimit)} / {session.turnLimit}</p>

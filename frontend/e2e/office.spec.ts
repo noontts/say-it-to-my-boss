@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { setupPractice } from './practice-fixture'
+import { setupPractice, walkToPhone } from './practice-fixture'
 
 const opening = 'รายงานเลยกำหนดแล้ว พรุ่งนี้ผมต้องใช้ในที่ประชุม เกิดอะไรขึ้นครับ?'
 const callbackOpening = 'เมื่อกี้ผมโทรไปแล้วคุณไม่ได้รับสาย ตอนนี้รายงานไปถึงไหนแล้วครับ?'
@@ -28,7 +28,7 @@ async function showIncomingCall(page: Page) {
 
 async function answerCall(page: Page) {
   await showIncomingCall(page)
-  await answer(page).click()
+  await (await walkToPhone(page)).click()
   await expect(transcript(page)).toContainText(opening)
 }
 
@@ -46,10 +46,15 @@ test('answering the boss starts one desk session after the player acts', async (
     return route.continue()
   })
   await showIncomingCall(page)
-  await expect(page.getByRole('heading', { name: 'สายเรียกเข้า' })).toBeFocused()
-  await expect(answer(page)).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'ออฟฟิศ' })).toBeFocused()
+  await expect(answer(page)).toHaveCount(0)
+  await page.keyboard.press('e')
+  await expect(page.getByText(/สายเรียกเข้าจาก/)).toBeVisible({ timeout: 8_000 })
+  await expect(page.getByText('เดินไปที่โต๊ะเพื่อรับสาย')).toBeVisible()
+  await page.keyboard.press('e')
   expect(requests).toHaveLength(0)
-  await answer(page).click()
+  await walkToPhone(page)
+  await page.keyboard.press('e')
   await expect(transcript(page)).toContainText(opening)
   await expect(desk(page)).toBeVisible()
   expect(requests).toEqual([{ scenarioId: 'angry-boss', officeEntry: 'answer' }])
@@ -115,4 +120,20 @@ test('the desk portrait stays idle and the transcript remains available if NPC a
   await expect(page.getByText('เล่นเสียงไม่ได้ อ่านคำตอบได้ในบทสนทนา')).toBeVisible()
   await expect(page.getByRole('img', { name: 'หัวหน้ากำลังกังวล' })).toHaveAttribute('data-speaking', 'false')
   await expect(transcript(page)).toContainText(opening)
+})
+
+test('the phone rings on schedule while the player is still walking', async ({ page }) => {
+  await page.clock.install()
+  await showIncomingCall(page)
+  const caller = page.getByText(/สายเรียกเข้าจาก/)
+  await page.keyboard.down('a')
+  try {
+    await page.clock.fastForward(4_000)
+    await expect(caller).toHaveCount(0)
+    await page.clock.fastForward(1_200)
+    await expect(caller).toBeVisible()
+    await expect(answer(page)).toHaveCount(0)
+  } finally {
+    await page.keyboard.up('a')
+  }
 })
