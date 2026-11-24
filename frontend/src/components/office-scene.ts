@@ -66,11 +66,18 @@ export type Point = [number, number, number]
 const eyeHeight = 1.55
 const verticalTangent = 1 / 1.6
 const horizontalTangent = verticalTangent * 16 / 9
-export const phonePosition: Point = [5.60, 5.50, 0.98]
+const deskTop = { min: [5.45, 4.7, 0.78] as Point, max: [6.4, 6.3, 0.88] as Point }
+const playerRadius = 0.2
+export const phonePosition: Point = [deskTop.min[0] + 0.15, 5.50, deskTop.max[2] + 0.10]
+export const reportPosition: Point = [deskTop.min[0] + 0.25, 5.04, deskTop.max[2] + 0.03]
+export const notesPosition: Point = [2.37, 6.86, 1.52]
 export const officeSpawn: OfficeCamera = { x: 2, y: 5.5, angle: 0, pitch: -0.03 }
 export const deskCamera: OfficeCamera = { x: 5.02, y: 5.48, angle: 0.06, pitch: -0.34, height: 1.28 }
 
-export function officeAim(camera: OfficeCamera, target: Point, reach: number) {
+export function officeAim(camera: OfficeCamera, target: Point) {
+  const reach = 1.6
+  // The phone and report are on the front side of the desk.
+  if ((target === phonePosition || target === reportPosition) && camera.x > deskTop.min[0]) return null
   const x = target[0] - camera.x
   const y = target[1] - camera.y
   const z = target[2] - (camera.height ?? eyeHeight)
@@ -87,8 +94,11 @@ export function officeAim(camera: OfficeCamera, target: Point, reach: number) {
 }
 
 export function officeWalkable(x: number, y: number) {
-  return x > 1.2 && x < 6.8 && y > 1.2 && y < 6.8 &&
-    !(x > 5.25 && y > 4.5 && y < 6.5)
+  const insideRoom = x > 1 + playerRadius && x < 7 - playerRadius &&
+    y > 1 + playerRadius && y < 7 - playerRadius
+  const hitsDesk = x > deskTop.min[0] - playerRadius && x < deskTop.max[0] + playerRadius &&
+    y > deskTop.min[1] - playerRadius && y < deskTop.max[1] + playerRadius
+  return insideRoom && !hitsDesk
 }
 
 function officeGeometry() {
@@ -159,7 +169,7 @@ function officeGeometry() {
   }
 
   // Desk, chunky monitor, paper, and the ringing handset.
-  box([5.45, 4.7, 0.78], [6.4, 6.3, 0.88], 0x9b7650, 3)
+  box(deskTop.min, deskTop.max, 0x9b7650, 3)
   for (const y of [4.73, 6.19]) {
     box([5.51, y, 0.02], [5.61, y + 0.08, 0.78], 0x485349)
     box([6.25, y, 0.02], [6.35, y + 0.08, 0.78], 0x485349)

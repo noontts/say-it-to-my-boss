@@ -85,6 +85,7 @@ func writeSession(ctx *gin.Context, status int, state game.Session, err error) {
 		status = http.StatusNotFound
 	case errors.Is(err, game.ErrInvalidOfficeEntry):
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid office entry"})
+		return
 	case errors.Is(err, game.ErrInvalidTurn), errors.Is(err, game.ErrNotPlayable):
 		status = http.StatusBadRequest
 	case errors.Is(err, game.ErrConflict):

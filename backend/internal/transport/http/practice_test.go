@@ -133,6 +133,9 @@ func postSession(t *testing.T, router http.Handler, path string, body any, statu
 	if response.Code != status {
 		t.Fatalf("POST %s got %d, want %d: %s", path, response.Code, status, response.Body)
 	}
+	if !json.Valid(response.Body.Bytes()) {
+		t.Fatalf("POST %s returned invalid JSON: %s", path, response.Body)
+	}
 	var session game.Session
 	decode(t, response, &session)
 	return session
@@ -148,6 +151,10 @@ func TestOfficeEntrySession(t *testing.T) {
 	session := postSession(t, router, "/api/v1/sessions", map[string]string{"scenarioId": "angry-boss", "officeEntry": "answer"}, http.StatusCreated)
 	if session.OfficeEntry != "answer" || session.Trust != 50 || session.Mood != "concerned" || session.Turn != 0 || len(session.Achieved) != 0 || len(session.Messages) != 1 {
 		t.Fatalf("unexpected initial session: %+v", session)
+	}
+	legacy := postSession(t, router, "/api/v1/sessions", map[string]string{"scenarioId": "angry-boss"}, http.StatusCreated)
+	if legacy.OfficeEntry != "" || legacy.Trust != session.Trust || legacy.Messages[0] != session.Messages[0] {
+		t.Fatalf("answer changed the usual opening or trust: %+v", session)
 	}
 	var restored game.Session
 	decode(t, request(t, router, "/api/v1/sessions/"+session.ID, http.StatusOK), &restored)

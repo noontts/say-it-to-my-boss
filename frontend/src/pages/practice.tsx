@@ -304,14 +304,14 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
   const id = restoredId.current
   const officeAvailable = !officeUnavailable && scenarioId === 'angry-boss' &&
     window.matchMedia('(pointer: fine)').matches && typeof document.body.requestPointerLock === 'function'
-  const officeCall = officeAvailable && Boolean(session?.officeEntry)
+  const officeCall = Boolean(session?.officeEntry)
   const office = officeAvailable && (officeCall || (!session && !id)) && (
     <Office key={officeRun} inCall={officeCall} busy={busy} error={error} start={start}
       fallback={() => setOfficeUnavailable(true)} />
   )
 
   function replay() {
-    if (!officeCall) {
+    if (!officeCall || !officeAvailable) {
       start()
       return
     }

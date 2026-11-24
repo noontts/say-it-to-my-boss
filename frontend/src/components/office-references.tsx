@@ -1,4 +1,4 @@
-import type { Point } from './office-scene'
+import { notesPosition, reportPosition, type Point } from './office-scene'
 
 export type OfficeReference = {
   id: string
@@ -13,7 +13,7 @@ export const officeReferences: OfficeReference[] = [
     id: 'report',
     title: 'รายงาน',
     action: 'อ่านรายงาน',
-    position: [5.70, 5.04, 0.91],
+    position: reportPosition,
     facts: [
       'บทสรุปและกราฟภาพรวมพร้อมแล้ว หัวหน้าสามารถใช้เตรียมประชุมได้',
       'ตัวเลขจากทีมปฏิบัติการชุดล่าสุดยังอยู่ระหว่างตรวจสอบก่อนรวมเข้ารายงานฉบับเต็ม',
@@ -23,7 +23,7 @@ export const officeReferences: OfficeReference[] = [
     id: 'team-notes',
     title: 'โน้ตทีม',
     action: 'อ่านโน้ตทีม',
-    position: [2.37, 6.86, 1.52],
+    position: notesPosition,
     facts: [
       'ส่งบทสรุปและกราฟภาพรวมได้วันนี้ 17:00 น.',
       'ถ้าการตรวจตัวเลขยังติดขัด ให้อัปเดตความเสี่ยงกับหัวหน้าภายใน 19:00 น. วันนี้',

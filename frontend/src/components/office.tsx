@@ -72,12 +72,12 @@ export function Office({ inCall, busy, error, start, fallback }: OfficeProps) {
 
   function getPhone(now: number): OfficeEntry | null {
     const p = player.current
-    if (now < ringAt.current || p.x > 5.29 || officeAim(p, phonePosition, 1.6) === null) return null
+    if (now < ringAt.current || officeAim(p, phonePosition) === null) return null
     return now < deadline.current ? 'answer' : 'callback'
   }
 
   function openReference(document: OfficeReference) {
-    if (choice.current || documentAim(player.current, document) === null) return
+    if (choice.current || officeAim(player.current, document.position) === null) return
     reading.current = document
     setReference(document)
     release()
@@ -120,7 +120,7 @@ export function Office({ inCall, busy, error, start, fallback }: OfficeProps) {
       return
     }
     const reachable = officeReferences
-      .map((document) => ({ document, aim: documentAim(player.current, document) }))
+      .map((document) => ({ document, aim: officeAim(player.current, document.position) }))
       .sort((a, b) => (a.aim ?? Infinity) - (b.aim ?? Infinity))[0]
     if (reachable.aim !== null) openReference(reachable.document)
   })
@@ -216,7 +216,7 @@ export function Office({ inCall, busy, error, start, fallback }: OfficeProps) {
         ringing.current = null
       }
       const phone = getPhone(now)
-      const documents = officeReferences.filter((document) => documentAim(p, document) !== null)
+      const documents = officeReferences.filter((document) => officeAim(p, document.position) !== null)
       const nextHUD = [remaining, phone, ...documents.map((document) => document.id)].join('/')
       if (nextHUD !== previousHUD) {
         previousHUD = nextHUD
@@ -310,11 +310,6 @@ export function Office({ inCall, busy, error, start, fallback }: OfficeProps) {
       )}
     </section>
   )
-}
-
-function documentAim(player: OfficeCamera, document: OfficeReference) {
-  if (document.id === 'report' && player.x > 5.29) return null
-  return officeAim(player, document.position, 1.6)
 }
 
 function move(player: OfficeCamera, keys: Set<string>, deltaSeconds: number) {

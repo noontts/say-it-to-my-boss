@@ -219,3 +219,62 @@ test('a desktop without WebGL can still launch the direct practice call', async 
   await expect(transcript(page)).toContainText(opening)
   await expect(page.getByRole('region', { name: 'มุมมองโต๊ะทำงาน' })).toHaveCount(0)
 })
+
+test('the office phone plays from either side before mute and the visual timer continues', async ({ page }) => {
+  await page.addInitScript(() => {
+    const created: StereoPannerNode[] = []
+    const createStereoPanner = AudioContext.prototype.createStereoPanner
+    AudioContext.prototype.createStereoPanner = function () {
+      const panner = createStereoPanner.call(this)
+      created.push(panner)
+      return panner
+    }
+    Object.defineProperty(window, 'officeRingPans', { get: () => created.map((node) => node.pan.value) })
+  })
+  const pans = () => page.evaluate(() => (window as Window & { officeRingPans?: number[] }).officeRingPans ?? [])
+  await openOffice(page)
+  await walk(page, 'a', 760)
+  await page.clock.fastForward(9_300)
+  await expect.poll(async () => (await pans()).at(-1)).toBeGreaterThan(0.25)
+  await walk(page, 'd', 1_320)
+  await page.clock.fastForward(180)
+  await expect.poll(async () => (await pans()).at(-1)).toBeLessThan(-0.25)
+  await page.getByRole('button', { name: 'ปิดเสียงเรียกเข้า' }).click()
+  const audiblePulses = (await pans()).length
+  await page.clock.fastForward(3_000)
+  await expect(page.getByRole('timer')).toBeVisible()
+  expect(await pans()).toHaveLength(audiblePulses)
+})
+
+for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+  test(`the desk camera honors ${reducedMotion} motion preferences`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion })
+    await answerCall(page)
+    const camera = page.getByLabel('มุมมองออฟฟิศ', { exact: true })
+    await page.clock.runFor(16)
+    const firstFrame = await camera.screenshot()
+    await page.clock.runFor(400)
+    const lastFrame = await camera.screenshot()
+    expect(firstFrame.equals(lastFrame)).toBe(reducedMotion === 'reduce')
+  })
+}
+
+test('an office portrait stays idle and the transcript remains available if NPC audio fails', async ({ page }) => {
+  await page.route('**/api/v1/sessions/*/voice/*', (route) => route.fulfill({ status: 502 }))
+  await answerCall(page)
+  await expect(page.getByText('เล่นเสียงไม่ได้ อ่านคำตอบได้ในบทสนทนา')).toBeVisible()
+  await expect(page.getByRole('img', { name: 'หัวหน้ากำลังกังวล' })).toHaveAttribute('data-speaking', 'false')
+  await expect(transcript(page)).toContainText(opening)
+})
+
+test('office presentation keeps its portrait and references on fallback restore', async ({ page }) => {
+  await answerCall(page)
+  await page.addInitScript(() => {
+    Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', { value: () => null })
+  })
+  await page.reload()
+  await expect(transcript(page)).toContainText(opening)
+  await expect(page.getByRole('img', { name: 'หัวหน้ากำลังกังวล' })).toBeVisible()
+  await page.getByText('เอกสารประกอบ', { exact: true }).click()
+  await expect(page.getByText('โน้ตทีม', { exact: true })).toBeVisible()
+})

@@ -16,8 +16,6 @@ import (
 const (
 	MaxMessageLength = 1000
 	initialTrust     = 50
-	callbackTrust    = 35
-	callbackOpening  = "เมื่อกี้ผมโทรไปแล้วคุณไม่ได้รับสาย ตอนนี้รายงานไปถึงไหนแล้วครับ?"
 	sessionLifetime  = 2 * time.Hour
 	maxSessions      = 1000
 )
@@ -38,12 +36,18 @@ type Objective struct {
 }
 
 type PracticeSpec struct {
-	Persona      string              `json:"persona"`
-	Opening      string              `json:"opening"`
-	Objectives   []practiceObjective `json:"objectives"`
-	TurnLimit    int                 `json:"turnLimit"`
-	MinimumTrust int                 `json:"minimumTrust"`
-	LocalReplies []string            `json:"localReplies"`
+	Persona        string              `json:"persona"`
+	Opening        string              `json:"opening"`
+	OfficeCallback *officeCallback     `json:"officeCallback,omitempty"`
+	Objectives     []practiceObjective `json:"objectives"`
+	TurnLimit      int                 `json:"turnLimit"`
+	MinimumTrust   int                 `json:"minimumTrust"`
+	LocalReplies   []string            `json:"localReplies"`
+}
+
+type officeCallback struct {
+	Opening       string `json:"opening"`
+	StartingTrust *int   `json:"startingTrust"`
 }
 
 type practiceObjective struct {
@@ -54,6 +58,14 @@ type practiceObjective struct {
 func (spec PracticeSpec) validate() error {
 	if err := requireText("persona", spec.Persona, "opening", spec.Opening); err != nil {
 		return err
+	}
+	if callback := spec.OfficeCallback; callback != nil {
+		if err := requireText("office callback opening", callback.Opening); err != nil {
+			return err
+		}
+		if callback.StartingTrust == nil || *callback.StartingTrust < 0 || *callback.StartingTrust >= initialTrust {
+			return errors.New("office callback starting trust must be below normal starting trust")
+		}
 	}
 	if spec.TurnLimit < 1 || spec.TurnLimit > 10 || len(spec.LocalReplies) != spec.TurnLimit ||
 		spec.MinimumTrust < 1 || spec.MinimumTrust > 100 || len(spec.Objectives) == 0 {
@@ -174,7 +186,11 @@ func (p *Practice) StartWithOfficeEntry(scenarioID, officeEntry string) (Session
 	}
 	trust, opening := initialTrust, spec.Opening
 	if officeEntry == "callback" {
-		trust, opening = callbackTrust, callbackOpening
+		callback := spec.OfficeCallback
+		if callback == nil {
+			return Session{}, ErrInvalidOfficeEntry
+		}
+		trust, opening = *callback.StartingTrust, callback.Opening
 	}
 	state := Session{
 		ID: rand.Text(), ScenarioID: scenarioID, OfficeEntry: officeEntry, TurnLimit: turnLimit,
