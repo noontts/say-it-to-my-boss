@@ -496,3 +496,231 @@ h3 {
   color: #254a38;
   font-weight: 700;
 }
+
+/* First-person office HUD and desk call */
+.panel > div:has(> .office) {
+  width: 100%;
+  min-width: 0;
+}
+
+.office {
+  position: relative;
+  margin-block: 1rem;
+  overflow: hidden;
+  isolation: isolate;
+  background: #192724;
+  border: 1px solid #394a3b;
+  border-radius: 0.75rem;
+  color: #fff4db;
+}
+
+.office-view {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  image-rendering: pixelated;
+}
+
+.office-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.55rem;
+  padding: 1.25rem;
+  text-align: center;
+  background: linear-gradient(120deg, #122923e8, #1b2d27bd 65%, #1b2d277a);
+}
+
+.office-overlay h3 {
+  font-size: clamp(1.35rem, 4vw, 2.35rem);
+  font-weight: 800;
+}
+
+.office-overlay p {
+  margin: 0 0 0.7rem;
+  color: #ede5ca;
+}
+
+.office .button.primary {
+  background: #f2cc76;
+  color: #252819;
+  border-color: #f2cc76;
+}
+
+.office .button.primary:hover {
+  background: #ffe095;
+}
+
+.office-hud, .office-actions, .office-desk-label {
+  position: absolute;
+  inset-inline: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
+}
+
+.office-hud {
+  inset-block-start: 0;
+  justify-content: space-between;
+  background: linear-gradient(#14251fea, #14251f82);
+  font-size: 0.84rem;
+  font-weight: 650;
+}
+
+.office-hud p, .office-desk-label p {
+  margin: 0;
+}
+
+.office-actions, .office-desk-label {
+  inset-block-end: 0;
+  flex-wrap: wrap;
+  justify-content: center;
+  background: linear-gradient(transparent, #12251ce8);
+}
+
+.office-desk-label {
+  justify-content: space-between;
+  padding-block-start: 1.3rem;
+  font-weight: 750;
+}
+
+.office-icon-button {
+  padding: 0.28rem 0.65rem;
+  border: 1px solid #a8b29a;
+  border-radius: 0.3rem;
+  background: #263a32;
+  color: #fff4db;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.office-icon-button:hover {
+  background: #385248;
+}
+
+.office-ring {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 3.5rem;
+  inset-inline-start: 0.85rem;
+  display: grid;
+  min-width: 10rem;
+  gap: 0.05rem;
+  padding: 0.44rem 0.75rem;
+  border: 1px solid #f2cc76;
+  border-radius: 0.35rem;
+  background: #282c20ed;
+  font-weight: 650;
+  font-size: 0.85rem;
+}
+
+.office-ring strong {
+  color: #ffe08b;
+  font-size: clamp(1rem, 2vw, 1.25rem);
+  font-variant-numeric: tabular-nums;
+}
+
+.office-ring[data-active="false"] {
+  border-color: #cd9c86;
+}
+
+.office-crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  border: 1px solid #263a32;
+  background: #fff4db;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.office-document {
+  position: absolute;
+  inset-inline: 0.85rem;
+  inset-block-end: 0.85rem;
+  max-width: 34rem;
+  max-height: 56%;
+  overflow: auto;
+  margin-inline: auto;
+  padding: 0.8rem 1rem;
+  background: #f5eccc;
+  color: #292e23;
+  border: 1px solid #c5b689;
+  border-radius: 0.4rem;
+}
+
+.office-document h3, .reference-grid h4 {
+  font-weight: 800;
+}
+
+.office-document ul, .reference-grid ul {
+  padding-inline-start: 1.25rem;
+  list-style: disc;
+  margin-block: 0.3rem 0.65rem;
+}
+
+.office-call {
+  margin-block-start: 1rem;
+}
+
+.office-boss-portrait {
+  --mood-column: 50%;
+  display: block;
+  width: 112px;
+  height: 112px;
+  margin-inline: auto;
+  border-radius: 0.35rem;
+  background: #142328 url('/avatars/office-boss.png') var(--mood-column) 0% / 300% 200% no-repeat;
+  image-rendering: pixelated;
+}
+
+.office-boss-portrait[data-mood="frustrated"] {
+  --mood-column: 0%;
+}
+
+.office-boss-portrait[data-mood="reassured"] {
+  --mood-column: 100%;
+}
+
+.office-boss-portrait[data-speaking="true"] {
+  animation: office-boss-speech 0.24s steps(1, end) infinite;
+}
+
+@keyframes office-boss-speech {
+  50% { background-position-y: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .office-boss-portrait[data-speaking="true"] {
+    animation: none;
+    background-position-y: 100%;
+  }
+}
+
+.call-references {
+  margin-block: 0.75rem;
+  border: 1px solid #c7cbb4;
+  border-radius: 0.4rem;
+  background: #f6f1df;
+  color: #292e23;
+  text-align: start;
+}
+
+.call-references summary {
+  padding: 0.45rem 0.75rem;
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.reference-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: 0.65rem 1rem;
+  padding: 0.2rem 0.75rem 0.65rem;
+  font-size: 0.85rem;
+}

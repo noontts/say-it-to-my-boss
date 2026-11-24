@@ -22,6 +22,13 @@ The React [practice page](../../frontend/src/pages/practice.tsx) coordinates the
 - Manual hang-up stops capture and playback and signals the end immediately. When the NPC hangs up, the microphone stops and the closing line plays before the end tone. Preset endings and silence hang-ups also play their final line before the tone. The tone is gated by the speaker toggle and plays at most once per session in the page. Results use a separate request after the call ends.
 - The transcript is visible during the call and scrolls as dialogue or draft text changes. The call also shows the portrait and speaking state, current turn, objectives, and trust. The turn counter shows a total for local calls. [Voice controls and call rendering](../../frontend/src/pages/practice.tsx)
 
+
+## Office call presentation
+
+- On desktop, answering or calling back from the office stops the ring and releases mouse capture. The camera moves into a stationary desk view or jumps directly there with Reduced Motion.
+- The pixel-art boss portrait uses the saved Mood and follows actual NPC audio playback. The transcript, microphone controls, and playback recovery use the usual call interface.
+- The report and team notes are available before and during the call. Opening the in-call reference panel leaves speech recognition, NPC playback, and the usual silence rules running.
+
 ## Verification
 
 The mobile Chromium and WebKit [Playwright suite](../../frontend/e2e/voice-call.spec.ts) simulates Thai recognition and covers microphone recovery, automatic submission and retry, playback controls, both interruptions, silence and manual hang-up, and closing audio order with successful and failed speech requests. The [test configuration](../../frontend/playwright.config.ts) starts Go in local mode and Vite on dedicated ports. The default suite uses PCM and WAV fixtures. The focused live test streams audio from a running worker.

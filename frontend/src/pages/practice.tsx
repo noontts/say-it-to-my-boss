@@ -1,12 +1,15 @@
 import { Fragment, useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useSpeechToText } from '../hooks/use-speech-to-text'
 import { useNpcVoice } from '../hooks/use-npc-voice'
+import { Office } from '../components/office'
+import { OfficeBossPortrait } from '../components/office-boss-portrait'
+import { CallReferences } from '../components/office-references'
 import { PracticeResults } from '../components/practice-results'
 import type { ScenarioSummary } from '../types/scenario'
 import {
   PracticeError, bossVoiceURL, finishSession, hangUpSession, npcVoiceURL, readSession, sendMessage, startSession,
   updatePracticeURL,
-  type Session, type TurnSubmission,
+  type OfficeEntry, type Session, type TurnSubmission,
 } from '../services/practice'
 
 const maxMessageLength = 1000
@@ -25,6 +28,8 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
   const pending = useRef<TurnSubmission | null>(null)
   const transcriptList = useRef<HTMLOListElement>(null)
   const [session, setSession] = useState<Session | null>(null)
+  const [officeUnavailable, setOfficeUnavailable] = useState(false)
+  const [officeRun, setOfficeRun] = useState(0)
   const [busy, setBusy] = useState(Boolean(restoredId.current))
   const [error, setError] = useState('')
   const [unsentReply, setUnsentReply] = useState<string | null>(null)
@@ -207,10 +212,12 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
     }
   }, [restore])
 
-  function start() {
+  function start(officeEntry?: OfficeEntry) {
     if (voice.enabled) voice.prime()
-    void run((signal) => startSession(scenarioId, signal), 'เริ่มฝึกไม่สำเร็จ ลองอีกครั้ง', (next) => {
+    void run((signal) => startSession(scenarioId, signal, officeEntry), 'เริ่มฝึกไม่สำเร็จ ลองอีกครั้ง', (next) => {
       setBossLines({})
+      setManualHangUp(false)
+      setPlayingGoodbye(false)
       setTypedReply('')
       evaluatedTurn.current = -1
       speechStartedAt.current = null
@@ -294,14 +301,37 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
     })
   }
 
+  const id = restoredId.current
+  const officeAvailable = !officeUnavailable && scenarioId === 'angry-boss' &&
+    window.matchMedia('(pointer: fine)').matches && typeof document.body.requestPointerLock === 'function'
+  const officeCall = Boolean(session?.officeEntry)
+  const office = officeAvailable && (officeCall || (!session && !id)) && (
+    <Office key={officeRun} inCall={officeCall} busy={busy} error={error} start={start}
+      fallback={() => setOfficeUnavailable(true)} />
+  )
+
+  function replay() {
+    if (!officeCall || !officeAvailable) {
+      start()
+      return
+    }
+    voice.stop()
+    speech.stop()
+    setSession(null)
+    setError('')
+    restoredId.current = null
+    updatePracticeURL()
+    setOfficeRun((run) => run + 1)
+  }
+
   if (!session) {
-    const id = restoredId.current
     return (
       <div>
-        {busy && <p role="status">กำลังโหลดบทสนทนา…</p>}
+        {office}
+        {!office && busy && <p role="status">กำลังโหลดบทสนทนา…</p>}
         {error && <p role="alert">{error}</p>}
-        {!busy && (
-          <button className="button primary" onClick={id ? () => restore(id) : start}>
+        {!office && !busy && (
+          <button className="button primary" onClick={id ? () => restore(id) : () => start()}>
             {id ? 'โหลดอีกครั้ง' : 'เริ่มคุย'}
           </button>
         )}
@@ -310,7 +340,12 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
   }
 
   if (session.results) {
-    return <PracticeResults session={session} retry={start} exit={exit} busy={busy} error={error} />
+    return (
+      <div>
+        {office}
+        <PracticeResults session={session} retry={replay} exit={exit} busy={busy} error={error} />
+      </div>
+    )
   }
 
   const endedAfterSilence = session.endReason === 'silence'
@@ -340,13 +375,16 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
   else if (listening) callStatus = 'กำลังฟัง…'
 
   return (
-    <div className="practice">
+    <div className={officeCall ? 'practice office-call' : 'practice'}>
+      {office}
       <section className="voice-call" aria-labelledby="call-character">
         {session.turnLimit ? (
           <p className="call-round">รอบที่ {Math.min(session.turn + 1, session.turnLimit)} / {session.turnLimit}</p>
         ) : active && <p className="call-round">รอบที่ {session.turn + 1}</p>}
         <div className="call-person">
-          {scenario.character && (
+          {officeCall ? (
+            <OfficeBossPortrait mood={session.mood} speaking={voice.speaking && !voice.preparing} />
+          ) : scenario.character && (
             <img
               className={voice.speaking && !voice.preparing ? 'portrait speaking' : 'portrait'}
               src={`/avatars/${scenarioId}.jpg`}
@@ -358,6 +396,8 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
           <h3 id="call-character">{character}</h3>
           <p className="call-status" role="status">{callStatus}</p>
         </div>
+
+        {officeCall && <CallReferences />}
 
         <ol ref={transcriptList} className="call-transcript" role="list" aria-label="บทสนทนา" tabIndex={0}>
           {session.messages.map((message, index) => {

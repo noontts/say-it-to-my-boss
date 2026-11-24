@@ -21,12 +21,13 @@ const (
 )
 
 var (
-	ErrNotFound    = errors.New("session or scenario not found")
-	ErrNotPlayable = errors.New("scenario is not playable")
-	ErrInvalidTurn = errors.New("invalid message or turn")
-	ErrConflict    = errors.New("session is busy, finished, or on a different turn")
-	ErrAtCapacity  = errors.New("session capacity reached")
-	ErrReplyFailed = errors.New("NPC reply unavailable")
+	ErrNotFound           = errors.New("session or scenario not found")
+	ErrNotPlayable        = errors.New("scenario is not playable")
+	ErrInvalidTurn        = errors.New("invalid message or turn")
+	ErrInvalidOfficeEntry = errors.New("invalid office entry")
+	ErrConflict           = errors.New("session is busy, finished, or on a different turn")
+	ErrAtCapacity         = errors.New("session capacity reached")
+	ErrReplyFailed        = errors.New("NPC reply unavailable")
 )
 
 type Objective struct {
@@ -35,12 +36,18 @@ type Objective struct {
 }
 
 type PracticeSpec struct {
-	Persona      string              `json:"persona"`
-	Opening      string              `json:"opening"`
-	Objectives   []practiceObjective `json:"objectives"`
-	TurnLimit    int                 `json:"turnLimit"`
-	MinimumTrust int                 `json:"minimumTrust"`
-	LocalReplies []string            `json:"localReplies"`
+	Persona        string              `json:"persona"`
+	Opening        string              `json:"opening"`
+	OfficeCallback *officeCallback     `json:"officeCallback,omitempty"`
+	Objectives     []practiceObjective `json:"objectives"`
+	TurnLimit      int                 `json:"turnLimit"`
+	MinimumTrust   int                 `json:"minimumTrust"`
+	LocalReplies   []string            `json:"localReplies"`
+}
+
+type officeCallback struct {
+	Opening       string `json:"opening"`
+	StartingTrust *int   `json:"startingTrust"`
 }
 
 type practiceObjective struct {
@@ -51,6 +58,14 @@ type practiceObjective struct {
 func (spec PracticeSpec) validate() error {
 	if err := requireText("persona", spec.Persona, "opening", spec.Opening); err != nil {
 		return err
+	}
+	if callback := spec.OfficeCallback; callback != nil {
+		if err := requireText("office callback opening", callback.Opening); err != nil {
+			return err
+		}
+		if callback.StartingTrust == nil || *callback.StartingTrust < 0 || *callback.StartingTrust >= initialTrust {
+			return errors.New("office callback starting trust must be below normal starting trust")
+		}
 	}
 	if spec.TurnLimit < 1 || spec.TurnLimit > 10 || len(spec.LocalReplies) != spec.TurnLimit ||
 		spec.MinimumTrust < 1 || spec.MinimumTrust > 100 || len(spec.Objectives) == 0 {
@@ -85,19 +100,20 @@ type Message struct {
 }
 
 type Session struct {
-	ID         string      `json:"id"`
-	ScenarioID string      `json:"scenarioId"`
-	Messages   []Message   `json:"messages"`
-	Objectives []Objective `json:"objectives"`
-	Achieved   []string    `json:"achieved"`
-	Turn       int         `json:"turn"`
-	TurnLimit  int         `json:"turnLimit,omitempty"`
-	Trust      int         `json:"trust"`
-	Mood       string      `json:"mood"`
-	Status     string      `json:"status"`
-	EndReason  string      `json:"endReason,omitempty"`
-	Mode       string      `json:"mode"`
-	Results    *Results    `json:"results,omitempty"`
+	ID          string      `json:"id"`
+	ScenarioID  string      `json:"scenarioId"`
+	OfficeEntry string      `json:"officeEntry,omitempty"`
+	Messages    []Message   `json:"messages"`
+	Objectives  []Objective `json:"objectives"`
+	Achieved    []string    `json:"achieved"`
+	Turn        int         `json:"turn"`
+	TurnLimit   int         `json:"turnLimit,omitempty"`
+	Trust       int         `json:"trust"`
+	Mood        string      `json:"mood"`
+	Status      string      `json:"status"`
+	EndReason   string      `json:"endReason,omitempty"`
+	Mode        string      `json:"mode"`
+	Results     *Results    `json:"results,omitempty"`
 }
 
 type NPCReply struct {
@@ -143,6 +159,13 @@ func NewPractice(catalog *Catalog, ai PracticeAI) *Practice {
 }
 
 func (p *Practice) Start(scenarioID string) (Session, error) {
+	return p.StartWithOfficeEntry(scenarioID, "")
+}
+
+func (p *Practice) StartWithOfficeEntry(scenarioID, officeEntry string) (Session, error) {
+	if officeEntry != "" && (scenarioID != "angry-boss" || (officeEntry != "answer" && officeEntry != "callback")) {
+		return Session{}, ErrInvalidOfficeEntry
+	}
 	scenario, ok := p.catalog.Get(scenarioID)
 	if !ok {
 		return Session{}, ErrNotFound
@@ -161,10 +184,18 @@ func (p *Practice) Start(scenarioID string) (Session, error) {
 	for _, objective := range spec.Objectives {
 		objectives = append(objectives, objective.Objective)
 	}
+	trust, opening := initialTrust, spec.Opening
+	if officeEntry == "callback" {
+		callback := spec.OfficeCallback
+		if callback == nil {
+			return Session{}, ErrInvalidOfficeEntry
+		}
+		trust, opening = *callback.StartingTrust, callback.Opening
+	}
 	state := Session{
-		ID: rand.Text(), ScenarioID: scenarioID, TurnLimit: turnLimit,
-		Messages: []Message{{Role: "npc", Text: spec.Opening}}, Objectives: objectives,
-		Achieved: []string{}, Trust: initialTrust, Mood: mood(initialTrust), Status: "active", Mode: mode,
+		ID: rand.Text(), ScenarioID: scenarioID, OfficeEntry: officeEntry, TurnLimit: turnLimit,
+		Messages: []Message{{Role: "npc", Text: opening}}, Objectives: objectives,
+		Achieved: []string{}, Trust: trust, Mood: mood(trust), Status: "active", Mode: mode,
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()

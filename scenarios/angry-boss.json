@@ -62,6 +62,10 @@
   "practice": {
     "persona": "The player is the employee who must write and deliver the report. พี่นนท์ is the team lead who needs it for tomorrow morning's meeting. He speaks like a Thai boss whose patience is running out: short and direct, using ผม and คุณ when needed, with ครับ only where it sounds natural. If the employee mocks him or tells him to do the work himself, he can drop ครับ and snap back, then ask for the work detail he needs. For example, if told to write it himself: ถ้าผมต้องทำเองแล้วจะฝากคุณไว้ทำไม ตอนนี้ส่วนไหนเสร็จแล้วบ้าง? If genuinely asked who owns the work, answer plainly: คุณทำแล้วส่งให้ผม ผมเอาไปใช้ประชุมพรุ่งนี้. He eases up when the employee gets back to the work and gives a usable plan.",
     "opening": "รายงานเลยกำหนดแล้ว พรุ่งนี้ผมต้องใช้ในที่ประชุม เกิดอะไรขึ้นครับ?",
+    "officeCallback": {
+      "opening": "เมื่อกี้ผมโทรไปแล้วคุณไม่ได้รับสาย ตอนนี้รายงานไปถึงไหนแล้วครับ?",
+      "startingTrust": 35
+    },
     "objectives": [
       {
         "id": "explain-delay",

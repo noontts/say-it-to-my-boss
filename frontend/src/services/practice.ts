@@ -1,14 +1,18 @@
 const sessions = '/api/v1/sessions'
 
+export type OfficeEntry = 'answer' | 'callback'
+
 export interface Session {
   id: string
   scenarioId: string
+  officeEntry?: OfficeEntry
   messages: { role: 'npc' | 'player'; text: string }[]
   objectives: { id: string; description: string }[]
   achieved: string[]
   turn: number
   turnLimit?: number
   trust: number
+  mood: 'frustrated' | 'concerned' | 'reassured'
   status: 'active' | 'succeeded' | 'needs_practice'
   endReason?: 'silence' | 'player' | 'npc'
   mode: 'local' | 'ai'
@@ -46,8 +50,8 @@ async function request(path: string, signal: AbortSignal, body?: object): Promis
   return response.json()
 }
 
-export function startSession(scenarioId: string, signal: AbortSignal) {
-  return request(sessions, signal, { scenarioId })
+export function startSession(scenarioId: string, signal: AbortSignal, officeEntry?: OfficeEntry) {
+  return request(sessions, signal, { scenarioId, ...(officeEntry && { officeEntry }) })
 }
 
 export function readSession(id: string, signal: AbortSignal) {
