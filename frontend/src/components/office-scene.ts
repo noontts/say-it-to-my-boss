@@ -64,8 +64,15 @@ const fragmentSource = `
 export type Point = [number, number, number]
 
 const eyeHeight = 1.55
-const deskTop = { min: [5.45, 4.7, 0.78] as Point, max: [6.4, 6.3, 0.88] as Point }
+type Box = { min: Point; max: Point }
+const deskTop: Box = { min: [5.45, 4.7, 0.78], max: [6.4, 6.3, 0.88] }
+const workstation: Box = { min: [5.04, 3.02, 0.73], max: [5.87, 4.32, 0.83] }
+const chair: Box = { min: [4.50, 3.42, 0.41], max: [4.99, 3.92, 0.49] }
+const cabinet: Box = { min: [6.35, 2.12, 0.03], max: [6.95, 2.89, 1.48] }
+const planter: Box = { min: [6.32, 3.70, 0.35], max: [6.85, 4.23, 0.42] }
+const furniture = [deskTop, workstation, chair, cabinet, planter]
 const playerRadius = 0.2
+const typingCycle = [0, 1, 0, 2]
 export const phonePosition: Point = [deskTop.min[0] + 0.15, 5.50, deskTop.max[2] + 0.10]
 export const officeSpawn: OfficeCamera = { x: 2, y: 5.5, angle: 0, pitch: -0.03 }
 export const deskCamera: OfficeCamera = { x: 5.02, y: 5.48, angle: 0.06, pitch: -0.34, height: 1.28 }
@@ -77,9 +84,10 @@ export function officePhoneInReach({ x, y }: OfficeCamera) {
 export function officeWalkable(x: number, y: number) {
   const insideRoom = x > 1 + playerRadius && x < 7 - playerRadius &&
     y > 1 + playerRadius && y < 7 - playerRadius
-  const hitsDesk = x > deskTop.min[0] - playerRadius && x < deskTop.max[0] + playerRadius &&
-    y > deskTop.min[1] - playerRadius && y < deskTop.max[1] + playerRadius
-  return insideRoom && !hitsDesk
+  return insideRoom && !furniture.some(({ min, max }) =>
+    x > min[0] - playerRadius && x < max[0] + playerRadius &&
+    y > min[1] - playerRadius && y < max[1] + playerRadius,
+  )
 }
 
 function officeGeometry() {
@@ -90,15 +98,17 @@ function officeGeometry() {
     for (const point of [a, b, c, a, c, d]) vertices.push(...point, ...tint, material)
   }
 
-  function box(min: Point, max: Point, paint: number, material = 0) {
+  function box(min: Point, max: Point, paint: number, material = 0, rise = 0) {
     const [x, y, z] = min
     const [X, Y, Z] = max
+    const farBottom = z + rise
+    const farTop = Z + rise
     face([x, y, z], [x, Y, z], [x, Y, Z], [x, y, Z], paint, material, 0.87)
-    face([X, Y, z], [X, y, z], [X, y, Z], [X, Y, Z], paint, material, 0.82)
-    face([X, y, z], [x, y, z], [x, y, Z], [X, y, Z], paint, material, 0.73)
-    face([x, Y, z], [X, Y, z], [X, Y, Z], [x, Y, Z], paint, material, 0.91)
-    face([x, y, Z], [x, Y, Z], [X, Y, Z], [X, y, Z], paint, material)
-    face([x, y, z], [X, y, z], [X, Y, z], [x, Y, z], paint, material, 0.67)
+    face([X, Y, farBottom], [X, y, farBottom], [X, y, farTop], [X, Y, farTop], paint, material, 0.82)
+    face([X, y, farBottom], [x, y, z], [x, y, Z], [X, y, farTop], paint, material, 0.73)
+    face([x, Y, z], [X, Y, farBottom], [X, Y, farTop], [x, Y, Z], paint, material, 0.91)
+    face([x, y, Z], [x, Y, Z], [X, Y, farTop], [X, y, farTop], paint, material)
+    face([x, y, z], [X, y, farBottom], [X, Y, farBottom], [x, Y, z], paint, material, 0.67)
   }
 
   const height = 2.75
@@ -149,6 +159,68 @@ function officeGeometry() {
     box([2.72, y - 0.055, 2.656], [5.18, y + 0.055, 2.685], 0xe9dca0, 4)
   }
 
+  // The second workstation sits to the left of the path to the phone.
+  box(workstation.min, workstation.max, 0xa7855d, 3)
+  for (const x of [workstation.min[0] + 0.06, workstation.max[0] - 0.15]) {
+    for (const y of [workstation.min[1] + 0.06, workstation.max[1] - 0.15]) {
+      box([x, y, 0.02], [x + 0.09, y + 0.09, workstation.min[2]], 0x485349)
+    }
+  }
+  box([5.52, 3.19, 0.83], [5.79, 3.61, 0.87], 0x585950)
+  box([5.63, 3.23, 0.87], [5.77, 3.58, 1.22], 0x77766a)
+  box([5.59, 3.09, 1.14], [5.83, 3.72, 1.59], 0xa29b80)
+  box([5.58, 3.14, 1.19], [5.59, 3.67, 1.54], 0x313f3d, 4)
+  box([5.57, 3.17, 1.22], [5.58, 3.64, 1.51], 0x325a57, 4)
+  for (const [z, width] of [[1.43, 0.29], [1.37, 0.38], [1.31, 0.19]]) {
+    box([5.56, 3.21, z], [5.57, 3.21 + width, z + 0.018], 0x95b7a0, 4)
+  }
+  box([5.12, 3.39, 0.83], [5.37, 3.83, 0.86], 0x777b68)
+  for (const x of [5.15, 5.22, 5.29]) {
+    box([x, 3.42, 0.86], [x + 0.03, 3.80, 0.866], 0x414d43, 4)
+  }
+  box([5.22, 3.87, 0.83], [5.52, 4.18, 0.86], 0xa66a49, 3)
+  box([5.23, 3.88, 0.86], [5.51, 4.15, 0.88], 0xd0bd89, 4)
+  box([5.40, 3.89, 0.88], [5.43, 4.12, 0.90], 0x485349, 4)
+
+  box(chair.min, chair.max, 0x53736a)
+  box([4.51, 3.42, 0.48], [4.61, 3.92, 0.96], 0x394c45)
+  box([4.50, 3.44, 0.64], [4.65, 3.90, 1.04], 0x53736a)
+  box([4.69, 3.62, 0.09], [4.81, 3.72, 0.41], 0x373e37)
+  box([4.53, 3.63, 0.04], [4.97, 3.71, 0.12], 0x373e37)
+  box([4.71, 3.44, 0.04], [4.79, 3.90, 0.12], 0x373e37)
+
+  box([6.40, cabinet.min[1], cabinet.min[2]], cabinet.max, 0x58686a)
+  for (const z of [0.12, 0.45, 0.78, 1.11]) {
+    box([6.37, 2.17, z], [6.40, 2.84, z + 0.29], 0x7d938f)
+    box([cabinet.min[0], 2.42, z + 0.17], [6.37, 2.59, z + 0.205], 0xb7ac8a, 4)
+    box([6.36, 2.447, z + 0.10], [6.37, 2.56, z + 0.145], 0xc8bda0, 4)
+  }
+
+  box([6.35, 3.73, 0.01], [6.82, 4.20, 0.40], 0x9c694a, 3)
+  box(planter.min, planter.max, 0xbb8258, 3)
+  box([6.37, 3.75, 0.42], [6.80, 4.18, 0.427], 0x443e30)
+  box([6.56, 3.94, 0.42], [6.60, 3.98, 1.21], 0x52734b)
+  for (const [angle, height, length, tipHeight, paint] of [
+    [0.4, 0.53, 0.31, 0.84, 0x5a824f],
+    [2.5, 0.61, 0.36, 0.87, 0x76965a],
+    [4.2, 0.68, 0.37, 0.98, 0x658d56],
+    [1.7, 0.80, 0.38, 1.08, 0x6f9258],
+    [3.2, 0.92, 0.33, 1.21, 0x86a565],
+    [5.5, 1.02, 0.27, 1.34, 0x739854],
+    [2.0, 1.12, 0.19, 1.42, 0x8ba867],
+  ]) {
+    const dx = Math.cos(angle)
+    const dy = Math.sin(angle)
+    const middleX = 6.58 + dx * length * 0.55
+    const middleY = 3.96 + dy * length * 0.55
+    const middleZ = (height + tipHeight) / 2
+    const base: Point = [6.58, 3.96, height]
+    const ridge: Point = [middleX, middleY, middleZ + 0.06]
+    const tip: Point = [6.58 + dx * length, 3.96 + dy * length, tipHeight]
+    face(base, [middleX - dy * 0.10, middleY + dx * 0.10, middleZ], tip, ridge, paint, 4)
+    face(base, ridge, tip, [middleX + dy * 0.10, middleY - dx * 0.10, middleZ], paint, 4, 0.79)
+  }
+
   // Desk, chunky monitor, paper, and the ringing handset.
   box(deskTop.min, deskTop.max, 0x9b7650, 3)
   for (const y of [4.73, 6.19]) {
@@ -179,7 +251,42 @@ function officeGeometry() {
       box([x, y, 0.953], [x + 0.023, y + 0.024, 0.959], 0x879273, 4)
     }
   }
-  return new Float32Array(vertices)
+  // The coworker sits inside the chair's footprint and faces the monitor.
+  const shirt = 0x6c8199
+  const skin = 0xc08965
+  const hair = 0x3b3029
+  const trousers = 0x414957
+  for (const y of [3.48, 3.69]) {
+    box([4.74, y, 0.48], [5.15, y + 0.16, 0.63], trousers)
+    box([5.00, y, 0.13], [5.15, y + 0.15, 0.50], trousers)
+    box([4.99, y, 0.02], [5.23, y + 0.15, 0.13], 0x363734)
+  }
+  box([4.68, 3.46, 0.59], [4.94, 3.87, 1.10], shirt)
+  box([4.70, 3.42, 1.03], [4.96, 3.91, 1.13], shirt)
+  box([4.72, 3.56, 1.13], [4.91, 3.77, 1.22], skin)
+  box([4.68, 3.51, 1.21], [4.98, 3.80, 1.49], skin)
+  box([4.65, 3.50, 1.40], [4.99, 3.81, 1.54], hair)
+  box([4.65, 3.50, 1.30], [4.80, 3.81, 1.41], hair)
+  box([4.69, 3.53, 1.54], [4.94, 3.78, 1.57], hair)
+  box([4.81, 3.79, 1.31], [4.89, 3.83, 1.39], skin)
+  box([4.98, 3.62, 1.32], [5.009, 3.69, 1.38], skin)
+  for (const y of [3.55, 3.72]) {
+    box([4.98, y, 1.38], [4.989, y + 0.036, 1.40], 0x44372f, 4)
+  }
+
+  const roomVertexCount = vertices.length / 7
+  // Bake the poses into the scene buffer so typing never uploads geometry per frame.
+  const typingPoses = [0, 1, 2].map((raisedHand) => {
+    const start = vertices.length / 7
+    for (const [index, y] of [3.44, 3.72].entries()) {
+      const lift = raisedHand === index + 1 ? 0.065 : 0
+      box([4.76, y, 0.95], [4.95, y + 0.15, 1.11], shirt, 0, -0.04)
+      box([4.90, y + 0.02, 0.93], [5.15, y + 0.13, 1.02], shirt, 0, lift - 0.035)
+      box([5.14, y + 0.02, 0.895 + lift], [5.26, y + 0.125, 0.974 + lift], skin, 0, -0.027)
+    }
+    return { start, count: vertices.length / 7 - start }
+  })
+  return { geometry: new Float32Array(vertices), roomVertexCount, typingPoses }
 }
 
 function compileShader(gl: WebGLRenderingContext, type: number, source: string) {
@@ -218,7 +325,7 @@ export function createOfficeScene(canvas: HTMLCanvasElement) {
     return null
   }
 
-  const geometry = officeGeometry()
+  const { geometry, roomVertexCount, typingPoses } = officeGeometry()
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
   gl.bufferData(gl.ARRAY_BUFFER, geometry, gl.STATIC_DRAW)
   gl.useProgram(program)
@@ -239,14 +346,17 @@ export function createOfficeScene(canvas: HTMLCanvasElement) {
   const ringFlash = gl.getUniformLocation(program, 'ringFlash')
 
   return {
-    draw({ x, y, angle, pitch = -0.08, height = eyeHeight }: OfficeCamera, flash: boolean) {
+    draw({ x, y, angle, pitch = -0.08, height = eyeHeight }: OfficeCamera, flash: boolean, time?: number) {
       gl.viewport(0, 0, canvas.width, canvas.height)
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
       gl.uniform3f(eye, x, y, height)
       gl.uniform4f(direction, Math.cos(angle), Math.sin(angle), Math.cos(pitch), Math.sin(pitch))
       gl.uniform1f(aspect, canvas.width / canvas.height)
       gl.uniform1f(ringFlash, Number(flash))
-      gl.drawArrays(gl.TRIANGLES, 0, geometry.length / 7)
+      gl.drawArrays(gl.TRIANGLES, 0, roomVertexCount)
+      const step = time === undefined ? 0 : Math.floor(time / 120) % typingCycle.length
+      const pose = typingPoses[typingCycle[step]]
+      gl.drawArrays(gl.TRIANGLES, pose.start, pose.count)
     },
     dispose() {
       gl.deleteBuffer(buffer)
