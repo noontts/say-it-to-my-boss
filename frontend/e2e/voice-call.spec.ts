@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { setupPractice, testSpeech } from './practice-fixture'
+import { setupPractice, testSpeech, walkToPhone } from './practice-fixture'
 
 declare global {
   interface Window {
@@ -14,7 +14,6 @@ declare global {
 const scenarios = [
   {
     id: 'angry-boss',
-    title: /หัวหน้าเรียกคุย/,
     replies: [
       'ขอโทษที่ส่งช้าค่ะ เพราะตัวเลขยังตรวจไม่เสร็จ ตอนนี้ทำสรุปแล้วค่ะ',
       'ขอส่งบทสรุปก่อนห้าโมงเย็นค่ะ',
@@ -23,7 +22,6 @@ const scenarios = [
   },
   {
     id: 'demanding-client',
-    title: /ลูกค้าเร่งให้ส่งงาน/,
     replies: [
       'เข้าใจว่าต้องเปิดตัววันจันทร์ค่ะ ทีมทำไฟล์ทั้งหมดไม่ทัน',
       'ส่งภาพหลักวันศุกร์ก่อนบ่ายสามโมงค่ะ',
@@ -32,7 +30,6 @@ const scenarios = [
   },
   {
     id: 'difficult-customer',
-    title: /ลูกค้าขอคืนเงิน/,
     replies: [
       'ขอโทษที่คุณต้องเสียเวลานะคะ',
       'ตอนนี้พ้นกำหนดคืนเงินแล้วค่ะ',
@@ -43,11 +40,17 @@ const scenarios = [
 
 test.beforeEach(({ page }) => setupPractice(page))
 
-async function startCall(page: Page, title: RegExp, microphoneStarts = true) {
+async function startCall(page: Page, scenarioId: string, microphoneStarts = true) {
+  await page.route('**/api/v1/scenarios', async (route) => {
+    const response = await route.fetch()
+    const catalog = await response.json()
+    catalog.scenarios = catalog.scenarios.filter((scenario: { id: string }) => scenario.id === scenarioId)
+    await route.fulfill({ response, json: catalog })
+  })
   await page.goto('/')
   if (!microphoneStarts) await page.evaluate(() => { window.practiceTest.denyMicrophone = true })
-  await page.getByRole('button', { name: title }).click()
-  await page.getByRole('button', { name: 'เริ่มคุย', exact: true }).click()
+  await page.getByRole('button', { name: 'เริ่มเกม', exact: true }).click()
+  await (await walkToPhone(page)).click()
   await expect(page.getByRole('button', { name: microphoneStarts ? 'ปิดไมค์' : 'เปิดไมค์', exact: true })).toBeEnabled()
 }
 
@@ -72,41 +75,39 @@ function voicePath(page: Page, line: number | string) {
 const endTone = '/sounds/call-ended.wav'
 
 for (const scenario of scenarios) {
-  test(`${scenario.id} completes a voice call and saves results`, async ({ page }) => {
-    await startCall(page, scenario.title)
+  test(`${scenario.id} completes a voice call and restores its score`, async ({ page }) => {
+    await startCall(page, scenario.id)
     const initialURL = page.url()
     await expect(page.getByRole('textbox')).toHaveCount(0)
     await expectClip(page, voicePath(page, 0))
 
+    const transcript = page.getByRole('list', { name: 'บทสนทนา' })
     for (const [turn, reply] of scenario.replies.entries()) {
       await expectRecognitionStarts(page, turn + 1)
       await speak(page, reply)
       await expectClip(page, voicePath(page, (turn + 1) * 2))
+      if (turn < scenario.replies.length - 1) await expect(transcript).toContainText(reply)
     }
 
-    const transcript = page.locator('.voice-call').getByRole('list', { name: 'บทสนทนา' })
-    await expect(transcript.getByRole('listitem')).toHaveCount(7)
-    await expect(transcript).toContainText(scenario.replies[2])
     await expect.poll(() => page.evaluate(() => [
       window.practiceTest.microphoneRequests, window.practiceTest.releasedTracks,
     ])).toEqual([1, 1])
 
-    await page.getByRole('button', { name: 'ดูผลการฝึก' }).click()
     await expectClip(page, endTone)
-    const results = page.getByRole('region', { name: 'ผลการฝึก' })
-    await expect(results).toContainText('ทำเป้าหมายสำเร็จ')
-    await expect(results.getByText('สิ่งที่ลองปรับได้')).toBeVisible()
+    const score = page.getByRole('region', { name: 'คะแนนการฝึก' })
+    await expect(score).toContainText('100 / 100')
     await page.reload()
-    await expect(results).toContainText('ทำเป้าหมายสำเร็จ')
+    await expect(score).toContainText('100 / 100')
 
-    await page.getByRole('button', { name: 'ฝึกอีกครั้ง' }).click()
+    await expect(page.getByRole('region', { name: 'ออฟฟิศ', exact: true })).toBeVisible()
+    await (await walkToPhone(page)).click()
     await expect(page.getByText(/รอบที่ 1 \/ 3/)).toBeVisible()
     await expect(page).not.toHaveURL(initialURL)
   })
 }
 
 test('the microphone recovers from a denied permission and a speech error without an end event', async ({ page }) => {
-  await startCall(page, scenarios[0].title, false)
+  await startCall(page, scenarios[0].id, false)
   const microphone = page.getByRole('button', { name: 'เปิดไมค์' })
   await expect(page.getByRole('alert')).toContainText('อนุญาตให้เว็บไซต์ใช้ไมโครโฟน')
   expect(await page.evaluate(() => window.practiceTest.recognitionStarts)).toHaveLength(0)
@@ -141,7 +142,7 @@ test('a failed voice reply can be retried without dictating it again', async ({ 
     await route.continue()
   })
 
-  await startCall(page, scenarios[0].title)
+  await startCall(page, scenarios[0].id)
   const reply = scenarios[0].replies[0]
   const interim = 'ขอโทษที่ส่งช้า'
   const transcript = page.locator('.voice-call').getByRole('list', { name: 'บทสนทนา' })
@@ -159,7 +160,7 @@ test('a failed voice reply can be retried without dictating it again', async ({ 
 })
 
 test('playback can be muted and unmuted at a different speed', async ({ page }) => {
-  await startCall(page, scenarios[0].title)
+  await startCall(page, scenarios[0].id)
   const opening = voicePath(page, 0)
   await expectClip(page, opening)
   const speaker = page.getByRole('button', { name: 'เสียงคู่สนทนา' })
@@ -193,7 +194,7 @@ test('a tap plays the opening after autoplay is blocked', async ({ page }) => {
     if (path.includes('/voice/')) requests.push(path)
   })
 
-  await startCall(page, scenarios[1].title)
+  await startCall(page, scenarios[1].id)
   const opening = voicePath(page, 0)
   const play = page.getByRole('button', { name: 'เล่นเสียง', exact: true })
   await expect(play).toBeVisible()
@@ -242,7 +243,7 @@ for (const truncated of [false, true]) {
     }, { real, streamType })
 
     const scenario = scenarios[1]
-    await startCall(page, scenario.title)
+    await startCall(page, scenario.id)
     if (real) await expect.poll(() => page.evaluate(() => window.streamingTest.started)).toBeGreaterThan(0)
     else await expectClip(page, voicePath(page, 0))
     const openingChunks = await page.evaluate(() => window.streamingTest.started)
@@ -269,7 +270,7 @@ for (const truncated of [false, true]) {
 }
 
 test('the player can type a reply when microphone access is denied', async ({ page }) => {
-  await startCall(page, scenarios[1].title, false)
+  await startCall(page, scenarios[1].id, false)
   await expectClip(page, voicePath(page, 0))
   await page.getByLabel('พิมพ์คำตอบ').fill(scenarios[1].replies[0])
   await page.getByRole('button', { name: 'ส่งคำตอบ' }).tap()
@@ -287,7 +288,7 @@ for (const variant of [
       submissions.push(route.request().postDataJSON())
       await route.continue()
     })
-    await startCall(page, scenarios[0].title)
+    await startCall(page, scenarios[0].id)
     await expectClip(page, voicePath(page, 0))
     await page.evaluate((roll) => { window.practiceTest.interruptionRoll = roll }, variant.roll)
 
@@ -320,7 +321,7 @@ for (const variant of [
 }
 
 test('continuous listening resumes after a browser end event and respects mute', async ({ page }) => {
-  await startCall(page, scenarios[0].title)
+  await startCall(page, scenarios[0].id)
   await expectClip(page, voicePath(page, 0))
   await speak(page, 'รายงานเลยกำหนดแล้ว') // The opening clip leaking into the microphone.
   await page.evaluate(() => window.practiceTest.endRecognition())
@@ -340,7 +341,7 @@ test('continuous listening resumes after a browser end event and respects mute',
 
 test('a reply after the reminder keeps the call open', async ({ page }) => {
   await page.clock.install()
-  await startCall(page, scenarios[0].title)
+  await startCall(page, scenarios[0].id)
   await expectClip(page, voicePath(page, 0))
   await expect(page.getByRole('status')).toHaveText('กำลังฟัง…', { timeout: 10_000 })
 
@@ -365,7 +366,7 @@ test('a reply after the reminder keeps the call open', async ({ page }) => {
 
 test('the boss prompts and hangs up after silence even with the mic muted', async ({ page }) => {
   await page.clock.install()
-  await startCall(page, scenarios[0].title)
+  await startCall(page, scenarios[0].id)
   await expectClip(page, voicePath(page, 0))
   await page.getByRole('button', { name: 'ปิดไมค์' }).click()
   await expect(page.getByRole('status')).toHaveText('ไมค์ปิดอยู่', { timeout: 10_000 })
@@ -380,23 +381,19 @@ test('the boss prompts and hangs up after silence even with the mic muted', asyn
   await expectClip(page, voicePath(page, 2))
   await expect(page.getByRole('status')).toHaveText('หัวหน้ากำลังวางสาย…')
   await expect(goodbye).toBeVisible()
-  await expect(page.getByRole('status')).toHaveText('หัวหน้าวางสายแล้ว')
   await expectClip(page, endTone)
   expect(await page.evaluate(() => window.practiceTest.played.at(-2)?.path)).toBe(voicePath(page, 2))
   await expect(page.getByRole('button', { name: /เปิดไมค์|ปิดไมค์/ })).toHaveCount(0)
   expect(await page.evaluate(() => window.practiceTest.releasedTracks)).toBe(1)
 
+  await expect(page.getByRole('region', { name: 'คะแนนการฝึก' })).toContainText('0 / 100')
   await page.reload()
-  await expect(page.getByRole('status')).toHaveText('หัวหน้าวางสายแล้ว')
-  await expect(goodbye).toBeVisible()
-  await expect(page.getByText('ทำไมยังไม่ตอบครับ?', { exact: true })).toHaveCount(1)
-  await page.getByRole('button', { name: 'ดูผลการฝึก' }).click()
-  await expect(page.getByRole('region', { name: 'ผลการฝึก' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'คะแนนการฝึก' })).toContainText('0 / 100')
 })
 
 test('the boss waits while a reply is in progress', async ({ page }) => {
   await page.clock.install()
-  await startCall(page, scenarios[0].title)
+  await startCall(page, scenarios[0].id)
   await expectClip(page, voicePath(page, 0))
   const reminder = page.getByText('ทำไมยังไม่ตอบครับ?', { exact: true })
   const reply = scenarios[0].replies[0]
@@ -410,29 +407,128 @@ test('the boss waits while a reply is in progress', async ({ page }) => {
   await expect(page.getByText(/รอบที่ 2 \/ 3/)).toBeVisible()
 })
 
-test('the player can hang up while a reply is pending and still view results', async ({ page }) => {
+test('the player can hang up while a reply is pending and see the score', async ({ page }) => {
   let releaseReply = () => {}
   const answerPending = new Promise<void>((resolve) => { releaseReply = resolve })
   await page.route('**/api/v1/sessions/*/messages', async (route) => {
     await answerPending
     await route.abort()
   })
-  await startCall(page, scenarios[1].title)
+  await startCall(page, scenarios[1].id)
   await expectClip(page, voicePath(page, 0))
   await speak(page, scenarios[1].replies[0])
   await expect(page.getByRole('status')).toHaveText('กำลังตอบ…')
   await page.getByRole('button', { name: 'วางสาย', exact: true }).click()
-  await expect(page.getByRole('status')).toHaveText('คุณวางสายแล้ว')
+  await expect(page.getByRole('region', { name: 'คะแนนการฝึก' })).toContainText('0 / 100')
   await expectClip(page, endTone)
   releaseReply()
   await expect(page.getByRole('button', { name: /เปิดไมค์|ปิดไมค์/ })).toHaveCount(0)
   expect(await page.evaluate(() => window.practiceTest.releasedTracks)).toBe(1)
 
   await page.reload()
-  await expect(page.getByRole('status')).toHaveText('คุณวางสายแล้ว')
+  await expect(page.getByRole('region', { name: 'คะแนนการฝึก' })).toContainText('0 / 100')
   expect(await page.evaluate(() => window.practiceTest.played)).toHaveLength(0)
-  await page.getByRole('button', { name: 'ดูผลการฝึก' }).click()
-  await expect(page.getByRole('region', { name: 'ผลการฝึก' })).toBeVisible()
+})
+
+test('manual hang-up shows a score of 66 for two of three objectives', async ({ page }) => {
+  const scenario = scenarios[1]
+  await startCall(page, scenario.id)
+  for (const [turn, reply] of scenario.replies.slice(0, 2).entries()) {
+    await expectRecognitionStarts(page, turn + 1)
+    await speak(page, reply)
+    await expectClip(page, voicePath(page, (turn + 1) * 2))
+  }
+  await page.getByRole('button', { name: 'วางสาย', exact: true }).click()
+  await expect(page.getByRole('region', { name: 'คะแนนการฝึก' })).toContainText('66 / 100')
+})
+
+test('a failed hang-up offers retry before the score appears', async ({ page }) => {
+  let attempts = 0
+  await page.route('**/api/v1/sessions/*/hang-up', (route) => {
+    attempts++
+    return attempts === 1 ? route.fulfill({ status: 503 }) : route.continue()
+  })
+  await startCall(page, scenarios[1].id)
+  await page.getByRole('button', { name: 'วางสาย', exact: true }).click()
+  await expect(page.getByRole('alert')).toContainText('บันทึกการวางสายไม่สำเร็จ')
+  const score = page.getByRole('region', { name: 'คะแนนการฝึก' })
+  await expect(score).toHaveCount(0)
+  await page.getByRole('button', { name: 'บันทึกการวางสายอีกครั้ง' }).click()
+  await expect(score).toContainText('0 / 100')
+})
+
+test('hang-up during a committed final reply preserves the closing audio', async ({ page }) => {
+  let finalReplySaved!: () => void
+  const finalReply = new Promise<void>((resolve) => { finalReplySaved = resolve })
+  let release!: () => void
+  const hold = new Promise<void>((resolve) => { release = resolve })
+  await page.route('**/api/v1/sessions/*/messages', async (route) => {
+    if (route.request().postDataJSON().turn !== 2) return route.continue()
+    const response = await route.fetch()
+    expect((await response.json()).status).toBe('succeeded')
+    finalReplySaved()
+    await hold
+    await route.fulfill({ response }).catch(() => {})
+  })
+  const scenario = scenarios[1]
+  await startCall(page, scenario.id)
+  for (const [turn, reply] of scenario.replies.entries()) {
+    await expectRecognitionStarts(page, turn + 1)
+    await speak(page, reply)
+    if (turn < 2) await expectClip(page, voicePath(page, (turn + 1) * 2))
+  }
+  await finalReply
+  try {
+    await page.getByRole('button', { name: 'วางสาย', exact: true }).click()
+    await expectClip(page, voicePath(page, 6))
+    await expectClip(page, endTone)
+    await expect(page.getByRole('region', { name: 'คะแนนการฝึก' })).toContainText('100 / 100')
+  } finally {
+    release()
+  }
+})
+
+test('the score appears when the closing audio stream stops delivering frames', async ({ page }) => {
+  const streamType = 'application/vnd.angry-boss.pcm'
+  await page.clock.install()
+  await page.addInitScript((type) => {
+    const state = { started: 0, finish: () => {} }
+    window.streamingTest = state
+    const start = AudioBufferSourceNode.prototype.start
+    AudioBufferSourceNode.prototype.start = function (when, offset, duration) {
+      state.started++
+      start.call(this, when, offset, duration)
+    }
+    const fetch = window.fetch
+    window.fetch = (input, init) => {
+      if (String(input).endsWith('/voice/6') && new Headers(init?.headers).get('Accept') === type) {
+        const body = new ReadableStream({
+          start(controller) {
+            const frame = new Uint8Array(4 + 24_000)
+            new DataView(frame.buffer).setUint32(0, frame.length - 4, true)
+            controller.enqueue(frame)
+          },
+        })
+        return Promise.resolve(new Response(body, { headers: { 'Content-Type': type } }))
+      }
+      return fetch(input, init)
+    }
+  }, streamType)
+  const scenario = scenarios[1]
+  await startCall(page, scenario.id)
+  for (const [turn, reply] of scenario.replies.entries()) {
+    await expectRecognitionStarts(page, turn + 1)
+    await speak(page, reply)
+    if (turn < 2) await expectClip(page, voicePath(page, (turn + 1) * 2))
+  }
+  const score = page.getByRole('region', { name: 'คะแนนการฝึก' })
+  await expect(page.getByRole('status')).toHaveText('คู่สนทนากำลังวางสาย…')
+  await expect.poll(() => page.evaluate(() => window.streamingTest.started)).toBe(1)
+  await expect(score).toHaveCount(0)
+  await page.clock.fastForward(10_100)
+  await expect(score).toContainText('100 / 100')
+  await expect(page.getByRole('region', { name: 'ออฟฟิศ', exact: true })).toBeVisible()
+  await expect(score.getByRole('button')).toHaveCount(0)
 })
 
 test('an unavailable speech worker leaves the closing reply visible and plays the end tone', async ({ page }) => {
@@ -445,17 +541,15 @@ test('an unavailable speech worker leaves the closing reply visible and plays th
     await route.fulfill({ response, json: { ...session, mode: 'ai' } })
   })
   const scenario = scenarios[1]
-  await startCall(page, scenario.title)
+  await startCall(page, scenario.id)
   for (const [turn, reply] of scenario.replies.entries()) {
     await expectRecognitionStarts(page, turn + 1)
     await speak(page, reply)
   }
-  await expect(page.getByText(closingLine)).toBeVisible()
-  await expect(page.getByText(/เล่นเสียงไม่ได้/)).toBeVisible()
+  const score = page.getByRole('region', { name: 'คะแนนการฝึก' })
+  await expect(score).toContainText(closingLine)
   await expectClip(page, endTone)
-  await page.unroute('**/api/v1/sessions/*/voice/6')
-  await page.getByRole('button', { name: 'ลองเล่นเสียงอีกครั้ง' }).tap()
-  await expectClip(page, voicePath(page, 6))
+  await expect(score.getByRole('button')).toHaveCount(0)
 })
 
 test('an early AI hang-up plays the closing line before the end tone', async ({ page }) => {
@@ -475,15 +569,14 @@ test('an early AI hang-up plays the closing line before the end tone', async ({ 
   })
 
   const scenario = scenarios[1]
-  await startCall(page, scenario.title)
+  await startCall(page, scenario.id)
   await expect(page.getByText('รอบที่ 1', { exact: true })).toBeVisible()
   await speak(page, scenario.replies[0])
   await expect(page.getByText(closingLine)).toBeVisible()
   await expect(page.getByRole('button', { name: /เปิดไมค์|ปิดไมค์/ })).toHaveCount(0)
   await expectClip(page, voicePath(page, 2))
   await expectClip(page, endTone)
-  await expect(page.getByRole('status')).toHaveText('คู่สนทนาวางสายแล้ว')
-  await expect(page.getByRole('button', { name: 'ดูผลการฝึก' })).toBeEnabled()
+  await expect(page.getByRole('region', { name: 'คะแนนการฝึก' })).toContainText('33 / 100')
   const paths = await page.evaluate(() => window.practiceTest.played.map(({ path }) => path))
   expect(paths.at(-2)).toMatch(/\/voice\/2$/)
 })

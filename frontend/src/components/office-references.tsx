@@ -1,19 +1,7 @@
-import { notesPosition, reportPosition, type Point } from './office-scene'
-
-export type OfficeReference = {
-  id: string
-  title: string
-  action: string
-  position: Point
-  facts: string[]
-}
-
-export const officeReferences: OfficeReference[] = [
+const officeReferences = [
   {
     id: 'report',
     title: 'รายงาน',
-    action: 'อ่านรายงาน',
-    position: reportPosition,
     facts: [
       'บทสรุปและกราฟภาพรวมพร้อมแล้ว หัวหน้าสามารถใช้เตรียมประชุมได้',
       'ตัวเลขจากทีมปฏิบัติการชุดล่าสุดยังอยู่ระหว่างตรวจสอบก่อนรวมเข้ารายงานฉบับเต็ม',
@@ -22,8 +10,6 @@ export const officeReferences: OfficeReference[] = [
   {
     id: 'team-notes',
     title: 'โน้ตทีม',
-    action: 'อ่านโน้ตทีม',
-    position: notesPosition,
     facts: [
       'ส่งบทสรุปและกราฟภาพรวมได้วันนี้ 17:00 น.',
       'ถ้าการตรวจตัวเลขยังติดขัด ให้อัปเดตความเสี่ยงกับหัวหน้าภายใน 19:00 น. วันนี้',
@@ -32,10 +18,6 @@ export const officeReferences: OfficeReference[] = [
   },
 ]
 
-export function ReferenceFacts({ reference }: { reference: OfficeReference }) {
-  return <ul>{reference.facts.map((fact) => <li key={fact}>{fact}</li>)}</ul>
-}
-
 export function CallReferences() {
   return (
     <details className="call-references">
@@ -43,8 +25,8 @@ export function CallReferences() {
       <div className="reference-grid">
         {officeReferences.map((reference) => (
           <section key={reference.id}>
-            <h4>{reference.title}</h4>
-            <ReferenceFacts reference={reference} />
+            <h2>{reference.title}</h2>
+            <ul>{reference.facts.map((fact) => <li key={fact}>{fact}</li>)}</ul>
           </section>
         ))}
       </div>

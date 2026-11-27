@@ -64,33 +64,14 @@ const fragmentSource = `
 export type Point = [number, number, number]
 
 const eyeHeight = 1.55
-const verticalTangent = 1 / 1.6
-const horizontalTangent = verticalTangent * 16 / 9
 const deskTop = { min: [5.45, 4.7, 0.78] as Point, max: [6.4, 6.3, 0.88] as Point }
 const playerRadius = 0.2
 export const phonePosition: Point = [deskTop.min[0] + 0.15, 5.50, deskTop.max[2] + 0.10]
-export const reportPosition: Point = [deskTop.min[0] + 0.25, 5.04, deskTop.max[2] + 0.03]
-export const notesPosition: Point = [2.37, 6.86, 1.52]
 export const officeSpawn: OfficeCamera = { x: 2, y: 5.5, angle: 0, pitch: -0.03 }
 export const deskCamera: OfficeCamera = { x: 5.02, y: 5.48, angle: 0.06, pitch: -0.34, height: 1.28 }
 
-export function officeAim(camera: OfficeCamera, target: Point) {
-  const reach = 1.6
-  // The phone and report are on the front side of the desk.
-  if ((target === phonePosition || target === reportPosition) && camera.x > deskTop.min[0]) return null
-  const x = target[0] - camera.x
-  const y = target[1] - camera.y
-  const z = target[2] - (camera.height ?? eyeHeight)
-  if (Math.hypot(x, y, z) > reach) return null
-  const pitch = camera.pitch ?? 0
-  const forward = x * Math.cos(camera.angle) + y * Math.sin(camera.angle)
-  const sideways = -x * Math.sin(camera.angle) + y * Math.cos(camera.angle)
-  const depth = Math.cos(pitch) * forward + Math.sin(pitch) * z
-  if (depth <= 0.02) return null
-  const viewX = sideways / (depth * horizontalTangent)
-  const viewY = (Math.cos(pitch) * z - Math.sin(pitch) * forward) / (depth * verticalTangent)
-  if (Math.abs(viewX) > 0.88 || Math.abs(viewY) > 0.97) return null
-  return viewX * viewX + viewY * viewY
+export function officePhoneInReach({ x, y }: OfficeCamera) {
+  return x <= deskTop.min[0] && Math.hypot(phonePosition[0] - x, phonePosition[1] - y) <= 1.6
 }
 
 export function officeWalkable(x: number, y: number) {

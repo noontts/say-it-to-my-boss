@@ -5,7 +5,7 @@ declare global {
     practiceTest: {
       emitSpeech: (text: string, isFinal: boolean) => void
       endRecognition: () => void
-      interruptionRoll: number
+      interruptionRoll: number | null
       denyMicrophone: boolean
       recognitionError: string
       microphoneRequests: number
@@ -43,7 +43,7 @@ export async function setupPractice(page: Page) {
     const state: Window['practiceTest'] = {
       emitSpeech: () => {},
       endRecognition: () => {},
-      interruptionRoll: 1,
+      interruptionRoll: null,
       denyMicrophone: false,
       recognitionError: '',
       microphoneRequests: 0,
@@ -53,7 +53,8 @@ export async function setupPractice(page: Page) {
       audioPlayers: 0,
     }
     window.practiceTest = state
-    Math.random = () => state.interruptionRoll
+    const random = Math.random
+    Math.random = () => state.interruptionRoll ?? random()
 
     // Simulate the input hardware while exercising the real audio player and app.
     Object.defineProperty(navigator, 'mediaDevices', {
@@ -130,4 +131,15 @@ export async function setupPractice(page: Page) {
       return started
     }
   })
+}
+
+export async function walkToPhone(page: Page) {
+  const answer = page.getByRole('button', { name: 'รับสาย', exact: true })
+  await page.keyboard.down('w')
+  try {
+    await answer.waitFor({ state: 'visible', timeout: 10_000 })
+  } finally {
+    await page.keyboard.up('w')
+  }
+  return answer
 }

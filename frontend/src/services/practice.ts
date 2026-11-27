@@ -71,10 +71,6 @@ export function sendMessage(id: string, input: TurnSubmission, signal: AbortSign
   return request(`${sessions}/${encodeURIComponent(id)}/messages`, signal, input)
 }
 
-export function finishSession(id: string, signal: AbortSignal) {
-  return request(`${sessions}/${encodeURIComponent(id)}/finish`, signal, {})
-}
-
 export function hangUpSession(id: string, input: { turn: number } | { reason: 'player' }, signal: AbortSignal) {
   return request(`${sessions}/${encodeURIComponent(id)}/hang-up`, signal, input)
 }

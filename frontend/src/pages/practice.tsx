@@ -1,13 +1,14 @@
 import { Fragment, useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useSpeechToText } from '../hooks/use-speech-to-text'
 import { useNpcVoice } from '../hooks/use-npc-voice'
+import { CallHint } from '../components/call-hint'
 import { Office } from '../components/office'
 import { OfficeBossPortrait } from '../components/office-boss-portrait'
 import { CallReferences } from '../components/office-references'
-import { PracticeResults } from '../components/practice-results'
+import { PracticeScore } from '../components/practice-score'
 import type { ScenarioSummary } from '../types/scenario'
 import {
-  PracticeError, bossVoiceURL, finishSession, hangUpSession, npcVoiceURL, readSession, sendMessage, startSession,
+  PracticeError, bossVoiceURL, hangUpSession, npcVoiceURL, readSession, sendMessage, startSession,
   updatePracticeURL,
   type OfficeEntry, type Session, type TurnSubmission,
 } from '../services/practice'
@@ -21,15 +22,22 @@ const answerWait = 8_000
 
 type BossLine = { text: string; cue: Parameters<typeof bossVoiceURL>[1] }
 
-export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: () => void }) {
+export function Practice({ scenario, onCallEnded, lastCall, officeRingAt, officeAudio }: {
+  scenario: ScenarioSummary
+  onCallEnded: (call: { session: Session; closingReply?: string }) => void
+  lastCall?: { session: Session; closingReply?: string }
+  officeRingAt: number | null
+  officeAudio: () => AudioContext | null
+}) {
   const { id: scenarioId, character = 'คู่สนทนา' } = scenario
-  const restoredId = useRef(new URLSearchParams(window.location.search).get('session'))
+  const restoredId = useRef(officeRingAt === null ? new URLSearchParams(window.location.search).get('session') : null)
   const operation = useRef<AbortController | null>(null)
   const pending = useRef<TurnSubmission | null>(null)
   const transcriptList = useRef<HTMLOListElement>(null)
+  const incomingHeading = useRef<HTMLHeadingElement>(null)
+  const answerButton = useRef<HTMLButtonElement>(null)
+  const callHeading = useRef<HTMLHeadingElement>(null)
   const [session, setSession] = useState<Session | null>(null)
-  const [officeUnavailable, setOfficeUnavailable] = useState(false)
-  const [officeRun, setOfficeRun] = useState(0)
   const [busy, setBusy] = useState(Boolean(restoredId.current))
   const [error, setError] = useState('')
   const [unsentReply, setUnsentReply] = useState<string | null>(null)
@@ -44,8 +52,29 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
   const endToneSession = useRef<string | null>(null)
   const voice = useNpcVoice()
 
+  const returnToOffice = useEffectEvent((finished: Session) => {
+    const closingReply = finished.endReason !== 'player' && (!voice.enabled || voice.failure)
+      ? finished.messages.at(-1)?.text
+      : undefined
+    onCallEnded({ session: finished, closingReply })
+  })
+
+  useEffect(() => {
+    if (session && session.status !== 'active' && !playingGoodbye) returnToOffice(session)
+  }, [session, playingGoodbye])
+
   const savingHangUp = session?.status === 'active' && manualHangUp
   const active = session?.status === 'active' && !manualHangUp
+  const incoming = !session && !restoredId.current
+  const sessionId = session?.id
+  useEffect(() => {
+    if (incoming) incomingHeading.current?.focus()
+    else if (sessionId) callHeading.current?.focus()
+  }, [incoming, sessionId])
+  useEffect(() => {
+    if (incoming && !busy && error) answerButton.current?.focus()
+  }, [incoming, busy, error])
+
   const speech = useSpeechToText({
     accept: (text) => active && !operation.current && !pending.current &&
       unsentReply === null && !floorTaken.current && !voice.isEcho(text),
@@ -103,7 +132,10 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
   function signalCallEnd(id: string) {
     if (endToneSession.current === id) return
     endToneSession.current = id
-    if (voice.enabled) voice.playEndTone()
+    if (voice.enabled) {
+      setPlayingGoodbye(true)
+      voice.playEndTone(() => setPlayingGoodbye(false))
+    }
   }
 
   function playGoodbye(next: Session) {
@@ -113,8 +145,8 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
     }
     setPlayingGoodbye(true)
     playLatest(next, (finished) => {
-      setPlayingGoodbye(false)
       if (finished) signalCallEnd(next.id)
+      else setPlayingGoodbye(false)
     })
   }
 
@@ -226,14 +258,6 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
     })
   }
 
-  function finish(id: string) {
-    if (voice.speaking) {
-      voice.stop()
-      signalCallEnd(id)
-    }
-    void run((signal) => finishSession(id, signal), 'โหลดผลการฝึกไม่สำเร็จ ลองดูผลอีกครั้ง')
-  }
-
   function hangUp(id: string) {
     setManualHangUp(true)
     operation.current?.abort()
@@ -242,18 +266,19 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
     setUnsentReply(null)
     speech.stop()
     voice.stop()
-    signalCallEnd(id)
     void run((signal) => hangUpSession(id, { reason: 'player' }, signal),
-      'บันทึกการวางสายไม่สำเร็จ', () => setManualHangUp(false))
+      'บันทึกการวางสายไม่สำเร็จ', (next) => {
+        setManualHangUp(false)
+        if (next.endReason === 'player') signalCallEnd(id)
+        else playGoodbye(next)
+      })
   }
 
   function playLatest(next: Session, done?: (finished: boolean) => void) {
     const index = next.messages.length - 1
     const url = npcVoiceURL(next, index)
-    if (!voice.enabled || !url) return
-    voice.play(url, next.messages[index].text, done ?? (next.status !== 'active' ? (finished) => {
-      if (finished) signalCallEnd(next.id)
-    } : undefined))
+    if (voice.enabled && url) voice.play(url, next.messages[index].text, done)
+    else done?.(false)
   }
 
   const requestingMicrophone = speech.status === 'requesting'
@@ -296,60 +321,50 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
       }
     }, 'ส่งคำตอบไม่สำเร็จ ลองส่งอีกครั้ง', (next) => {
       if (next.status === 'active') speech.discard()
-      if (next.endReason === 'npc') playGoodbye(next)
+      if (next.status !== 'active') playGoodbye(next)
       else playLatest(next)
     })
   }
 
   const id = restoredId.current
-  const officeAvailable = !officeUnavailable && scenarioId === 'angry-boss' &&
-    window.matchMedia('(pointer: fine)').matches && typeof document.body.requestPointerLock === 'function'
+  const desktopOffice = scenarioId === 'angry-boss' && window.matchMedia('(pointer: fine)').matches
   const officeCall = Boolean(session?.officeEntry)
-  const office = officeAvailable && (officeCall || (!session && !id)) && (
-    <Office key={officeRun} inCall={officeCall} busy={busy} error={error} start={start}
-      fallback={() => setOfficeUnavailable(true)} />
-  )
-
-  function replay() {
-    if (!officeCall || !officeAvailable) {
-      start()
-      return
-    }
-    voice.stop()
-    speech.stop()
-    setSession(null)
-    setError('')
-    restoredId.current = null
-    updatePracticeURL()
-    setOfficeRun((run) => run + 1)
-  }
 
   if (!session) {
-    return (
-      <div>
-        {office}
-        {!office && busy && <p role="status">กำลังโหลดบทสนทนา…</p>}
-        {error && <p role="alert">{error}</p>}
-        {!office && !busy && (
-          <button className="button primary" onClick={id ? () => restore(id) : () => start()}>
-            {id ? 'โหลดอีกครั้ง' : 'เริ่มคุย'}
-          </button>
-        )}
-      </div>
-    )
-  }
+    if (id) {
+      return (
+        <section className="game-stage" aria-label="กำลังโหลดบทสนทนา">
+          {busy && <p role="status">กำลังโหลดบทสนทนา…</p>}
+          {error && <p role="alert">{error}</p>}
+          {!busy && <button className="game-button" onClick={() => restore(id)}>โหลดอีกครั้ง</button>}
+        </section>
+      )
+    }
 
-  if (session.results) {
+    if (officeRingAt !== null) {
+      return <Office incoming={{
+        ringAt: officeRingAt,
+        audio: officeAudio,
+        error,
+        busy,
+        answer: () => start(desktopOffice ? 'answer' : undefined),
+      }} resumeAtDesk={Boolean(lastCall)}>
+        {lastCall && <PracticeScore session={lastCall.session} closingReply={lastCall.closingReply} />}
+      </Office>
+    }
+
     return (
-      <div>
-        {office}
-        <PracticeResults session={session} retry={replay} exit={exit} busy={busy} error={error} />
-      </div>
+      <section className="game-stage" aria-labelledby="incoming-heading">
+        <h1 id="incoming-heading" tabIndex={-1} ref={incomingHeading}>สายเรียกเข้า</h1>
+        {error && <p role="alert">{error}</p>}
+        <button className="game-button" ref={answerButton} disabled={busy}
+          onClick={() => start(desktopOffice ? 'answer' : undefined)}>รับสาย</button>
+        {busy && <p role="status">กำลังต่อสาย…</p>}
+      </section>
     )
   }
 
   const endedAfterSilence = session.endReason === 'silence'
-  const npcHangingUp = endedAfterSilence || session.endReason === 'npc'
   const caller = scenarioId === 'angry-boss' ? 'หัวหน้า' : 'คู่สนทนา'
   const latestBossLine = active ? currentBossLines?.at(-1) : undefined
   const latestReply = latestBossLine?.text ?? session.messages.at(-1)?.text ?? ''
@@ -357,16 +372,22 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
     ? bossVoiceURL(session, latestBossLine.cue)
     : npcVoiceURL(session, session.messages.length - 1)
   const tooLong = unsentReply !== null && isTooLong(unsentReply)
+  const voiceRecovery = voice.failure && (
+    <div className="call-playback">
+      <p className="call-note" role="status">
+        {voice.failure === 'blocked' ? 'แตะเพื่อเล่นเสียงคู่สนทนา' : 'เล่นเสียงไม่ได้ อ่านคำตอบได้ในบทสนทนา'}
+      </p>
+      {voiceURL && <button className="call-speaker" type="button" onClick={() => voice.replay(voiceURL, latestReply)}>
+        {voice.failure === 'blocked' ? 'เล่นเสียง' : 'ลองเล่นเสียงอีกครั้ง'}
+      </button>}
+    </div>
+  )
+
+  if (session.status !== 'active' && !playingGoodbye) return null
 
   let callStatus = 'ไมค์ปิดอยู่'
-  if (savingHangUp) callStatus = busy ? 'กำลังวางสาย…' : 'วางสายแล้ว'
+  if (savingHangUp) callStatus = busy ? 'กำลังวางสาย…' : 'รอยืนยันวางสาย'
   else if (playingGoodbye) callStatus = `${caller}กำลังวางสาย…`
-  else if (!active) {
-    if (busy) callStatus = 'กำลังเตรียมผลการฝึก…'
-    else if (npcHangingUp) callStatus = `${caller}วางสายแล้ว`
-    else if (session.endReason === 'player') callStatus = 'คุณวางสายแล้ว'
-    else callStatus = 'จบบทสนทนาแล้ว'
-  }
   else if (takingFloor) callStatus = 'หัวหน้าพูดแทรกอยู่ รอให้พูดจบแล้วตอบอีกครั้ง'
   else if (busy) callStatus = 'กำลังตอบ…'
   else if (requestingMicrophone) callStatus = 'กำลังขอใช้ไมโครโฟน…'
@@ -374,9 +395,10 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
   else if (voice.speaking) callStatus = listening ? 'กำลังพูด · ไมค์เปิดอยู่' : 'กำลังพูด…'
   else if (listening) callStatus = 'กำลังฟัง…'
 
+  const atDesk = officeRingAt !== null || officeCall
   return (
-    <div className={officeCall ? 'practice office-call' : 'practice'}>
-      {office}
+    <div className={atDesk ? 'practice office-call' : 'practice'}>
+      {atDesk && <Office />}
       <section className="voice-call" aria-labelledby="call-character">
         {session.turnLimit ? (
           <p className="call-round">รอบที่ {Math.min(session.turn + 1, session.turnLimit)} / {session.turnLimit}</p>
@@ -393,11 +415,11 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
               height="112"
             />
           )}
-          <h3 id="call-character">{character}</h3>
+          <h1 id="call-character" tabIndex={-1} ref={callHeading}>{character}</h1>
           <p className="call-status" role="status">{callStatus}</p>
         </div>
 
-        {officeCall && <CallReferences />}
+        {scenarioId === 'angry-boss' && <CallReferences />}
 
         <ol ref={transcriptList} className="call-transcript" role="list" aria-label="บทสนทนา" tabIndex={0}>
           {session.messages.map((message, index) => {
@@ -449,6 +471,8 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
           </div>
         )}
 
+        {active && <CallHint key={session.id} objectives={session.objectives} />}
+
         {voiceURL && (active || voice.speaking) && (
           <div className="call-playback">
             <button className="call-speaker" aria-label="เสียงคู่สนทนา" aria-pressed={voice.enabled}
@@ -467,16 +491,7 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
             )}
           </div>
         )}
-        {voice.failure && (
-          <div className="call-playback">
-            <p className="call-note" role="status">
-              {voice.failure === 'blocked' ? 'แตะเพื่อเล่นเสียงคู่สนทนา' : 'เล่นเสียงไม่ได้ อ่านคำตอบได้ในบทสนทนา'}
-            </p>
-            {voiceURL && <button className="call-speaker" type="button" onClick={() => voice.replay(voiceURL, latestReply)}>
-              {voice.failure === 'blocked' ? 'เล่นเสียง' : 'ลองเล่นเสียงอีกครั้ง'}
-            </button>}
-          </div>
-        )}
+        {voiceRecovery}
         {active && !speech.supported && <p className="call-note" role="alert">เบราว์เซอร์นี้แปลงเสียงเป็นข้อความไม่ได้ ลองเปิดใน Chrome หรือ Safari</p>}
         {active && speech.error && <p className="call-note" role="alert">{speech.error}</p>}
         {active && needsTextReply && unsentReply === null && (
@@ -505,22 +520,7 @@ export function Practice({ scenario, exit }: { scenario: ScenarioSummary; exit: 
             </button>
           </div>
         )}
-        {!active && !savingHangUp && (
-          <button className="call-results" onClick={() => finish(session.id)} disabled={busy || playingGoodbye}>ดูผลการฝึก</button>
-        )}
       </section>
-
-      <details className="call-details">
-        <summary>เป้าหมายการฝึก</summary>
-        <ul>
-          {session.objectives.map((objective) => (
-            <li key={objective.id}>
-              {objective.description}{session.achieved.includes(objective.id) && ' (ทำได้แล้ว)'}
-            </li>
-          ))}
-        </ul>
-        <p>ความไว้วางใจ {session.trust} / 100</p>
-      </details>
     </div>
   )
 }
