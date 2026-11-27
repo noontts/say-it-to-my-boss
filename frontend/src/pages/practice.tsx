@@ -344,7 +344,6 @@ export function Practice({ scenario, onCallEnded, lastCall, officeRingAt, office
     if (officeRingAt !== null) {
       return <Office incoming={{
         ringAt: officeRingAt,
-        character,
         audio: officeAudio,
         error,
         busy,
@@ -357,8 +356,6 @@ export function Practice({ scenario, onCallEnded, lastCall, officeRingAt, office
     return (
       <section className="game-stage" aria-labelledby="incoming-heading">
         <h1 id="incoming-heading" tabIndex={-1} ref={incomingHeading}>สายเรียกเข้า</h1>
-        {scenario.character && <img className="incoming-portrait" src={`/avatars/${scenarioId}.jpg`} alt="" />}
-        <p className="incoming-character">{character}</p>
         {error && <p role="alert">{error}</p>}
         <button className="game-button" ref={answerButton} disabled={busy}
           onClick={() => start(desktopOffice ? 'answer' : undefined)}>รับสาย</button>

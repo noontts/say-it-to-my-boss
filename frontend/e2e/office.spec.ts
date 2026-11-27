@@ -49,7 +49,7 @@ test('answering the boss starts one desk session after the player acts', async (
   await expect(page.getByRole('heading', { name: 'ออฟฟิศ' })).toBeFocused()
   await expect(answer(page)).toHaveCount(0)
   await page.keyboard.press('e')
-  await expect(page.getByText(/สายเรียกเข้าจาก/)).toBeVisible({ timeout: 8_000 })
+  await expect(page.getByText('สายเรียกเข้า', { exact: true })).toBeVisible({ timeout: 8_000 })
   await expect(page.getByText('เดินไปที่โต๊ะเพื่อรับสาย')).toBeVisible()
   await page.keyboard.press('e')
   expect(requests).toHaveLength(0)
@@ -125,7 +125,7 @@ test('the desk portrait stays idle and the transcript remains available if NPC a
 test('the phone rings on schedule while the player is still walking', async ({ page }) => {
   await page.clock.install()
   await showIncomingCall(page)
-  const caller = page.getByText(/สายเรียกเข้าจาก/)
+  const caller = page.getByText('สายเรียกเข้า', { exact: true })
   await page.keyboard.down('a')
   try {
     await page.clock.fastForward(4_000)

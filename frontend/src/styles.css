@@ -70,8 +70,7 @@ button:focus-visible,
   opacity: 0.65;
 }
 
-.game-phone,
-.incoming-portrait {
+.game-phone {
   display: grid;
   place-items: center;
   width: clamp(6rem, 18vw, 9rem);
@@ -79,22 +78,9 @@ button:focus-visible,
   border: 1px solid #a6be99;
   border-radius: 50%;
   box-shadow: 0 0 0 0.6rem #cee6b614, 0 0 0 1.25rem #cee6b60a;
-}
-
-.game-phone {
   background: #193a2d;
   color: #f6d284;
   font-size: clamp(2.5rem, 8vw, 4rem);
-}
-
-.incoming-portrait {
-  margin-block: 0.75rem;
-  object-fit: cover;
-}
-
-.incoming-character {
-  font-size: clamp(1.2rem, 4vw, 1.75rem);
-  font-weight: 750;
 }
 
 .practice {

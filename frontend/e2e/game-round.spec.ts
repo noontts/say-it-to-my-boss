@@ -3,7 +3,7 @@ import { setupPractice, walkToPhone } from './practice-fixture'
 
 test.beforeEach(({ page }) => setupPractice(page))
 
-test('a random round only connects on Answer and retries the same caller', async ({ page }) => {
+test('a random round reveals the caller only after a successful Answer', async ({ page }) => {
   await page.clock.install()
   const requests: unknown[] = []
   await page.route('**/api/v1/scenarios', async (route) => {
@@ -26,14 +26,16 @@ test('a random round only connects on Answer and retries the same caller', async
   expect(await page.evaluate(() => window.practiceTest.microphoneRequests)).toBe(0)
 
   const answer = await walkToPhone(page)
-  const caller = await office.getByRole('status').textContent()
-  expect(caller).toMatch(/สายเรียกเข้าจาก/)
+  const caller = page.getByRole('heading', { name: 'คุณเมย์ · ลูกค้าโครงการ', exact: true })
+  await expect(office.getByRole('status')).toHaveText('สายเรียกเข้า')
+  await expect(office.getByText(/คุณเมย์/)).toHaveCount(0)
   await answer.click()
   await expect(page.getByRole('alert')).toContainText('เริ่มฝึกไม่สำเร็จ')
   await expect(answer).toBeFocused()
-  await expect(office.getByRole('status')).toHaveText(caller!)
+  await expect(office.getByRole('status')).toHaveText('สายเรียกเข้า')
+  await expect(caller).toHaveCount(0)
   await answer.click()
-  await expect(page.getByRole('list', { name: 'บทสนทนา' })).toBeVisible()
+  await expect(caller).toBeVisible()
   expect(requests).toEqual([{ scenarioId: 'demanding-client' }, { scenarioId: 'demanding-client' }])
 
   await page.getByRole('button', { name: 'วางสาย', exact: true }).click()
@@ -63,8 +65,9 @@ test('a finished round restores its score and the next call excludes the previou
   await page.getByRole('button', { name: 'เริ่มเกม' }).click()
   const office = page.getByRole('region', { name: 'ออฟฟิศ', exact: true })
   const answer = await walkToPhone(page)
-  const firstCaller = await office.getByRole('status').textContent()
+  await expect(office.getByRole('status')).toHaveText('สายเรียกเข้า')
   await answer.click()
+  await expect(page.getByRole('heading', { name: /พี่นนท์/ })).toBeVisible()
   await page.getByRole('button', { name: 'วางสาย', exact: true }).click()
   const score = page.getByRole('region', { name: 'คะแนนการฝึก' })
   await expect(score).toContainText('0 / 100')
@@ -72,8 +75,10 @@ test('a finished round restores its score and the next call excludes the previou
   await expect(score).toContainText('0 / 100')
   await expect(page.getByRole('button', { name: 'เล่นต่อ' })).toHaveCount(0)
   await expect(office.getByText('เดินสำรวจออฟฟิศระหว่างรอสาย')).toBeVisible()
-  await walkToPhone(page)
-  await expect(office.getByRole('status')).not.toHaveText(firstCaller!)
+  const nextAnswer = await walkToPhone(page)
+  await expect(office.getByRole('status')).toHaveText('สายเรียกเข้า')
+  await nextAnswer.click()
+  await expect(page.getByRole('heading', { name: /คุณเมย์|คุณอ้อย/ })).toBeVisible()
   expect(coachingRequests).toBe(0)
 })
 
@@ -94,8 +99,11 @@ test('a missing session offers a fresh answer and clears its expired link', asyn
   await page.goto('/?scenario=demanding-client&session=missing')
   await expect(page.getByRole('alert')).toContainText('ไม่พบการฝึกเดิม')
   await expect(page).not.toHaveURL(/session=/)
+  const incoming = page.getByRole('region', { name: 'สายเรียกเข้า', exact: true })
+  await expect(incoming.getByText(/คุณเมย์/)).toHaveCount(0)
+  await expect(incoming.locator('img')).toHaveCount(0)
   await page.getByRole('button', { name: 'รับสาย', exact: true }).click()
-  await expect(page.getByRole('list', { name: 'บทสนทนา' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /คุณเมย์/ })).toBeVisible()
 })
 
 test('the on-screen movement control can reach the desk on mobile', async ({ page }) => {

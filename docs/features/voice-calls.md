@@ -25,7 +25,7 @@ The React [practice page](../../frontend/src/pages/practice.tsx) coordinates the
 
 ## Office call presentation
 
-- Start Game opens the walkable office. After a call, the player returns to the desk automatically with movement enabled and the practice score visible. The desk phone flashes and rings after five seconds even during movement. The caller is shown when the ring starts. Players can answer once they reach the desk. An unavailable office renderer falls back to a timed visual alert and Answer button.
+- Start Game opens the walkable office. After a call, the player returns to the desk automatically with movement enabled and the practice score visible. The desk phone flashes and rings after five seconds even during movement. The caller’s name and portrait appear once the call connects. Players can answer once they reach the desk. An unavailable office renderer falls back to a timed visual alert and Answer button.
 - Answering opens the stationary desk view when the office renderer is available. Saved boss callback sessions restore their desk view and original dialogue.
 - The pixel-art boss portrait uses the saved Mood and follows actual NPC audio playback. The transcript, microphone controls, and playback recovery use the usual call interface.
 - The report and team notes are available during the call. Opening the in-call reference panel leaves speech recognition, NPC playback, and the usual silence rules running.

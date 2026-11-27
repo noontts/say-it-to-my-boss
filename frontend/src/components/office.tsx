@@ -14,7 +14,6 @@ const touchControls = [
 
 type OfficeIncoming = {
   ringAt: number
-  character: string
   audio: () => AudioContext | null
   busy: boolean
   error: string
@@ -212,7 +211,7 @@ export function Office({ incoming, resumeAtDesk, children }: {
           <div className="office-phone">
             {incoming.busy ? <p role="status">กำลังต่อสาย…</p> : (
               <>
-                <p role="status">{ringing ? `สายเรียกเข้าจาก ${incoming.character}` : 'เดินสำรวจออฟฟิศระหว่างรอสาย'}</p>
+                <p role="status">{ringing ? 'สายเรียกเข้า' : 'เดินสำรวจออฟฟิศระหว่างรอสาย'}</p>
                 {ringing && !rendererUnavailable && !phoneInReach && <p>เดินไปที่โต๊ะเพื่อรับสาย</p>}
               </>
             )}
