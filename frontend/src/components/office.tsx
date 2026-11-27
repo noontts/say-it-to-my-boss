@@ -100,6 +100,7 @@ export function Office({ incoming, resumeAtDesk, children }: {
       setRendererUnavailable(true)
     }
     view.addEventListener('webglcontextlost', lost)
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
     let frame = 0
     let last = performance.now()
     let wasRinging = false
@@ -118,7 +119,11 @@ export function Office({ incoming, resumeAtDesk, children }: {
         wasInReach = inReach
         setPhoneInReach(inReach)
       }
-      scene.draw(answerLocked.current ? deskCamera : camera.current, isRinging && Math.floor(now / 280) % 2 === 0)
+      scene.draw(
+        answerLocked.current ? deskCamera : camera.current,
+        isRinging && Math.floor(now / 280) % 2 === 0,
+        reducedMotion.matches ? undefined : now,
+      )
       frame = requestAnimationFrame(tick)
     }
     if (exploring) frame = requestAnimationFrame(tick)
